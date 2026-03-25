@@ -63,7 +63,10 @@ impl AppConfig {
 
         // Security: validate env allowlist entries are valid identifier-like strings
         for key in &self.security.child_env_allowlist {
-            if !key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+            if !key
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '(' | ')'))
+            {
                 anyhow::bail!("security.child_env_allowlist entry is invalid: {key:?}");
             }
         }
@@ -180,6 +183,24 @@ impl Default for SecurityConfig {
                 "TMP".into(),
                 "COMSPEC".into(),
                 "SystemRoot".into(),
+                "windir".into(),
+                "PATHEXT".into(),
+                "SystemDrive".into(),
+                "HOMEDRIVE".into(),
+                "HOMEPATH".into(),
+                "OS".into(),
+                "USERNAME".into(),
+                "COMPUTERNAME".into(),
+                "NUMBER_OF_PROCESSORS".into(),
+                "PROCESSOR_ARCHITECTURE".into(),
+                "ProgramData".into(),
+                "ProgramFiles".into(),
+                "ProgramFiles(x86)".into(),
+                "ProgramW6432".into(),
+                "CommonProgramFiles".into(),
+                "CommonProgramFiles(x86)".into(),
+                "CommonProgramW6432".into(),
+                "PSModulePath".into(),
             ],
         }
     }

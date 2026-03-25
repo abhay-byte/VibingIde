@@ -146,7 +146,9 @@ impl PanelManager {
         // Only commit panel to state if spawn succeeded
         self.next_id += 1;
         let mut panel = AgentPanel::new(id, label, command.clone(), args.clone(), session_id);
-        panel.status = PanelStatus::Running { pid: 0 };
+        panel.status = PanelStatus::Running {
+            pid: supervisor.process_id().unwrap_or(0),
+        };
         self.panels.push(panel);
         self.supervisors.push(Some(supervisor));
         self.focused = Some(id);
@@ -167,6 +169,9 @@ impl PanelManager {
     /// Close (kill) a panel by ID.
     pub fn close_panel(&mut self, panel_id: PanelId) {
         if let Some(idx) = self.panel_index(panel_id) {
+            if let Some(Some(supervisor)) = self.supervisors.get_mut(idx) {
+                let _ = supervisor.kill();
+            }
             self.supervisors[idx] = None;
             if let Some(p) = self.panels.get_mut(idx) {
                 p.status = PanelStatus::Exited { code: -1 };
@@ -191,6 +196,9 @@ impl PanelManager {
     }
 
     pub fn handle_exit(&mut self, panel_id: PanelId, exit_code: Option<i32>) {
+        if let Some(idx) = self.panel_index(panel_id) {
+            self.supervisors[idx] = None;
+        }
         if let Some(panel) = self.panel_mut(panel_id) {
             panel.status = match exit_code {
                 Some(0) => PanelStatus::Exited  { code: 0 },
