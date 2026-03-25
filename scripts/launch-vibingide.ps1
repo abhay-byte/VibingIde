@@ -11,12 +11,20 @@ $debugExe = Join-Path $repoRoot "target\debug\vibingide.exe"
 $cargoToml = Join-Path $repoRoot "Cargo.toml"
 
 if (Test-Path $releaseExe) {
-    Start-Process -FilePath $releaseExe -WorkingDirectory $repoRoot -ArgumentList $PassthroughArgs
+    if ($PassthroughArgs.Count -gt 0) {
+        Start-Process -FilePath $releaseExe -WorkingDirectory $repoRoot -ArgumentList $PassthroughArgs
+    } else {
+        Start-Process -FilePath $releaseExe -WorkingDirectory $repoRoot
+    }
     exit 0
 }
 
 if (Test-Path $debugExe) {
-    Start-Process -FilePath $debugExe -WorkingDirectory $repoRoot -ArgumentList $PassthroughArgs
+    if ($PassthroughArgs.Count -gt 0) {
+        Start-Process -FilePath $debugExe -WorkingDirectory $repoRoot -ArgumentList $PassthroughArgs
+    } else {
+        Start-Process -FilePath $debugExe -WorkingDirectory $repoRoot
+    }
     exit 0
 }
 

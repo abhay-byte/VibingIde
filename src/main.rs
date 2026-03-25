@@ -8,6 +8,7 @@ mod app;
 mod config;
 mod engine;
 mod history;
+mod path_utils;
 mod pty;
 mod ui;
 
@@ -39,6 +40,7 @@ fn main() -> Result<()> {
         .unwrap_or_else(|| std::env::current_dir().expect("cannot get cwd"));
     let project_root = project_root
         .canonicalize()
+        .map(crate::path_utils::normalize_platform_path)
         .map_err(|e| anyhow::anyhow!("cannot open project directory: {e}"))?;
 
     // ── Config ───────────────────────────────────────────────────────────────

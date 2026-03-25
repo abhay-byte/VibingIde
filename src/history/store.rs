@@ -35,9 +35,7 @@ impl SessionStore {
         let path = sessions_dir.join(format!("{session_id}.ndjson"));
 
         // Ensure the resolved path is within sessions_dir (prevent traversal).
-        let canonical_sessions = sessions_dir
-            .canonicalize()
-            .context("canonicalizing sessions dir")?;
+        let canonical_sessions = crate::path_utils::canonicalize_normalized(sessions_dir)?;
         // We can't canonicalize a non-existent file, so join and check prefix.
         if !path.starts_with(&canonical_sessions) {
             anyhow::bail!("session path escapes sessions directory");

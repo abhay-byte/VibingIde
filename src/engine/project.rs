@@ -111,7 +111,7 @@ fn scan_directory(root: &Path, dir: &Path, depth: usize) -> Result<Vec<FileNode>
         let name = entry.file_name().to_string_lossy().into_owned();
 
         // Validate that this path is still within project root (symlink guard).
-        if let Ok(canonical) = path.canonicalize() {
+        if let Ok(canonical) = crate::path_utils::canonicalize_normalized(&path) {
             if !canonical.starts_with(root) {
                 continue; // symlink escaping project root — skip
             }
