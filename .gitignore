@@ -1,0 +1,16 @@
+/target/
+/.vibingide/
+
+# Rust and build artifacts
+**/*.rs.bk
+
+# Logs and scratch output
+*.log
+/output.txt
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/

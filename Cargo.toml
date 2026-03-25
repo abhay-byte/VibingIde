@@ -1,0 +1,75 @@
+[package]
+name        = "vibingide"
+version     = "0.1.0"
+edition     = "2021"
+authors     = ["VibingIDE Contributors"]
+description = "Agent-first, ultra-lightweight IDE built in Rust"
+license     = "MIT"
+repository  = "https://github.com/abhay-byte/VibingIde"
+keywords    = ["ide", "gui", "ai-agent", "terminal", "cli"]
+categories  = ["command-line-utilities", "development-tools"]
+rust-version = "1.75"
+
+[[bin]]
+name = "vibingide"
+path = "src/main.rs"
+
+[dependencies]
+# GUI
+eframe = { version = "0.27", features = ["default_fonts", "persistence"] }
+egui   = "0.27"
+egui_extras = "0.27"
+
+# Async runtime
+tokio        = { version = "1", features = ["full"] }
+tokio-stream = { version = "0.1" }
+futures      = { version = "0.3", default-features = false, features = ["std"] }
+
+# PTY
+portable-pty = "0.8"
+
+# ANSI parsing
+vte = "0.13"
+
+# Serialization
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml       = "0.8"
+
+# Error handling
+anyhow    = "1"
+thiserror = "1"
+
+# IDs
+ulid = "1"
+
+# Logging / tracing
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-appender   = "0.2"
+
+# File watching
+notify = { version = "6", default-features = false, features = ["macos_fsevent"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Config dirs
+dirs = "5"
+
+[features]
+default = []
+
+[dev-dependencies]
+tokio-test   = "0.4"
+tempfile     = "3"
+
+[profile.dev]
+opt-level = 1        # faster compile, still debuggable
+
+[profile.release]
+opt-level     = 3
+lto           = "thin"
+codegen-units = 1
+strip         = true
+panic         = "abort"

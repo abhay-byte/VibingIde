@@ -1,0 +1,6 @@
+# Project-level Cargo config
+# Forces single-job builds to avoid Windows file-locking (os error 32)
+# on systems where multiple rustc processes race to write .rmeta files.
+
+[build]
+jobs = 1
