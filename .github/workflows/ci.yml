@@ -30,6 +30,12 @@ jobs:
       - name: Run cargo check
         run: cargo check --all-targets
 
+      - name: Validate Linux launcher scripts
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          bash -n scripts/launch-vibingide.sh
+          bash -n scripts/update-linux-shortcuts.sh
+
   cargo-test-windows:
     name: Cargo Test (Windows)
     runs-on: windows-latest

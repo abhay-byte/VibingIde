@@ -16,7 +16,9 @@ This repo uses a simple issue flow so work stays visible and gets pushed in smal
 - Keep issues small enough to finish in one commit when possible.
 - Record follow-up work in `TODO.md` instead of hiding it in your head.
 - If a task uncovers more work, finish the current issue first and add the rest as new TODO items.
-- If a change affects launch, Windows behavior, or release flow, refresh the local shortcuts with `scripts\update-shortcuts.ps1`.
+- If a change affects launch or release flow, refresh local app launchers.
+- On Windows, run `scripts\update-shortcuts.ps1`.
+- On Linux, run `scripts/update-linux-shortcuts.sh`.
 
 ## Definition Of Done
 
