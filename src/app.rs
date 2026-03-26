@@ -826,7 +826,10 @@ impl VibingApp {
 
         if let Some(panel_id) = focused_id {
             self.panel_mgr.set_focus(panel_id);
-            self.render_panel_card(ui, ctx, panel_id);
+            let available = ui.available_size();
+            let (panel_rect, _) = ui.allocate_exact_size(available, egui::Sense::hover());
+            let mut child_ui = ui.child_ui(panel_rect, *ui.layout());
+            self.render_panel_card(&mut child_ui, ctx, panel_id);
         }
     }
 
@@ -838,6 +841,7 @@ impl VibingApp {
         };
 
         let border = if focused { ACCENT } else { BORDER_COLOR };
+        let panel_size = ui.available_size();
         let panel_frame = egui::Frame::none()
             .fill(BG_PANEL)
             .stroke(egui::Stroke::new(if focused { 1.5 } else { 1.0 }, border))
@@ -845,6 +849,8 @@ impl VibingApp {
             .inner_margin(egui::Margin::same(0.0));
 
         panel_frame.show(ui, |ui| {
+            ui.set_min_size(panel_size);
+
             if ui
                 .interact(ui.max_rect(), egui::Id::new(("panel_bg", panel_id)), egui::Sense::click())
                 .clicked()
