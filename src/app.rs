@@ -8,13 +8,13 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use egui::{Color32, FontId, RichText, Ui, Vec2};
+use egui::{Color32, FontId, Key, KeyboardShortcut, Modifiers, RichText, Ui, Vec2};
 use tokio::sync::mpsc;
-use tracing::{info, warn};
+use tracing::warn;
 
 use crate::config::AppConfig;
 use crate::engine::{
-    panel_manager::{AgentPanel, PanelManager, PanelStatus},
+    panel_manager::{PanelManager, PanelStatus},
     project::Project,
     session_manager::SessionManager,
 };
@@ -34,6 +34,13 @@ const ACCENT_YELLOW: Color32 = Color32::from_rgb(251, 191, 36);
 const TEXT_PRIMARY:  Color32 = Color32::from_rgb(225, 225, 235);
 const TEXT_DIM:      Color32 = Color32::from_rgb(110, 110, 140);
 const TEXT_MONO:     &str    = "Consolas, Monaco, Courier New";
+const ZOOM_STEP:     f32     = 0.1;
+const MIN_ZOOM:      f32     = 0.7;
+const MAX_ZOOM:      f32     = 2.0;
+const BASE_WIDTH:    f32     = 1280.0;
+const BASE_HEIGHT:   f32     = 800.0;
+const MIN_AUTO_SCALE:f32     = 0.85;
+const MAX_AUTO_SCALE:f32     = 1.35;
 
 // ── App state ──────────────────────────────────────────────────────────────────
 
@@ -61,6 +68,9 @@ pub struct VibingApp {
     show_new_panel_dialog: bool,
     new_panel_cmd:        String,
     cmd_error:            Option<String>,
+    auto_scale:           bool,
+    manual_zoom_factor:   f32,
+    applied_zoom_factor:  f32,
 }
 
 fn split_cmdline(s: &str) -> Option<(String, Vec<String>)> {
@@ -80,17 +90,17 @@ impl VibingApp {
         initial_cmd:  Option<String>,
         rt:           Arc<tokio::runtime::Runtime>,
     ) -> Self {
+        let auto_scale = config.ui.auto_scale;
+        let manual_zoom_factor = config.ui.zoom_factor;
         let project     = Project::open(project_root.clone()).expect("open project");
         let session_mgr = SessionManager::load(&project.vibide_dir).unwrap_or_default();
-
-        // Enter tokio runtime so supervisor can use tokio::task::spawn_blocking
-        let _guard = rt.enter();
 
         let (pty_tx, pty_rx) = mpsc::unbounded_channel::<PtyEvent>();
         let mut panel_mgr = PanelManager::new(
             pty_tx,
             config.ui.output_buffer_lines,
             config.security.child_env_allowlist.clone(),
+            rt.handle().clone(),
             project_root,
         );
 
@@ -116,6 +126,9 @@ impl VibingApp {
             show_new_panel_dialog: false,
             new_panel_cmd:         String::new(),
             cmd_error:             None,
+            auto_scale,
+            manual_zoom_factor,
+            applied_zoom_factor:   manual_zoom_factor,
         }
     }
 
@@ -134,8 +147,9 @@ impl VibingApp {
         visuals.selection.bg_fill              = Color32::from_rgb(80, 60, 200);
         ctx.set_visuals(visuals);
 
-        let mut fonts = egui::FontDefinitions::default();
+        let fonts = egui::FontDefinitions::default();
         ctx.set_fonts(fonts);
+        ctx.options_mut(|opt| opt.zoom_with_keyboard = false);
 
         ctx.set_style({
             let mut style = (*ctx.style()).clone();
@@ -143,6 +157,57 @@ impl VibingApp {
             style.spacing.button_padding = Vec2::new(12.0, 6.0);
             style
         });
+    }
+
+    fn handle_zoom_shortcuts(&mut self, ctx: &egui::Context) {
+        let zoom_in = KeyboardShortcut::new(Modifiers::COMMAND, Key::Plus);
+        let zoom_in_secondary = KeyboardShortcut::new(Modifiers::COMMAND, Key::Equals);
+        let zoom_out = KeyboardShortcut::new(Modifiers::COMMAND, Key::Minus);
+        let zoom_reset = KeyboardShortcut::new(Modifiers::COMMAND, Key::Num0);
+
+        if ctx.input_mut(|i| i.consume_shortcut(&zoom_reset)) {
+            self.manual_zoom_factor = self.config.ui.zoom_factor;
+            return;
+        }
+
+        if ctx.input_mut(|i| i.consume_shortcut(&zoom_in))
+            || ctx.input_mut(|i| i.consume_shortcut(&zoom_in_secondary))
+        {
+            self.manual_zoom_factor = (self.manual_zoom_factor + ZOOM_STEP)
+                .clamp(MIN_ZOOM, MAX_ZOOM);
+            self.manual_zoom_factor = (self.manual_zoom_factor * 10.0).round() / 10.0;
+        }
+
+        if ctx.input_mut(|i| i.consume_shortcut(&zoom_out)) {
+            self.manual_zoom_factor = (self.manual_zoom_factor - ZOOM_STEP)
+                .clamp(MIN_ZOOM, MAX_ZOOM);
+            self.manual_zoom_factor = (self.manual_zoom_factor * 10.0).round() / 10.0;
+        }
+    }
+
+    fn auto_zoom_factor(&self, ctx: &egui::Context) -> f32 {
+        if !self.auto_scale {
+            return 1.0;
+        }
+
+        let size = ctx.input(|i| i.screen_rect().size());
+        let width_scale = size.x / BASE_WIDTH;
+        let height_scale = size.y / BASE_HEIGHT;
+
+        width_scale
+            .min(height_scale)
+            .clamp(MIN_AUTO_SCALE, MAX_AUTO_SCALE)
+    }
+
+    fn apply_zoom(&mut self, ctx: &egui::Context) {
+        let target_zoom = (self.manual_zoom_factor * self.auto_zoom_factor(ctx))
+            .clamp(MIN_ZOOM, MAX_ZOOM);
+
+        if (ctx.zoom_factor() - target_zoom).abs() > f32::EPSILON {
+            ctx.set_zoom_factor(target_zoom);
+        }
+
+        self.applied_zoom_factor = target_zoom;
     }
 
     // ── PTY event drain ────────────────────────────────────────────────────────
@@ -268,6 +333,9 @@ impl VibingApp {
             .show(ctx, |ui| {
                 let entries: &[(&str, &str)] = &[
                     ("Ctrl+N",       "New agent panel"),
+                    ("Ctrl++ / Ctrl+=", "Scale UI up"),
+                    ("Ctrl+-",       "Scale UI down"),
+                    ("Ctrl+0",       "Reset manual scale"),
                     ("Ctrl+]",       "Focus next panel"),
                     ("Ctrl+[",       "Focus previous panel"),
                     ("Ctrl+W",       "Close focused panel"),
@@ -350,6 +418,13 @@ impl VibingApp {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
                         }
                         ui.add_space(12.0);
+
+                        ui.label(
+                            RichText::new(format!("{:.0}% zoom", self.applied_zoom_factor * 100.0))
+                                .color(TEXT_DIM)
+                                .size(12.0)
+                        );
+                        ui.add_space(8.0);
 
                         // Help toggle
                         let help_fill = if self.show_help {
@@ -773,6 +848,8 @@ impl eframe::App for VibingApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // 1. Drain PTY events (non-blocking)
         self.drain_pty_events();
+        self.handle_zoom_shortcuts(ctx);
+        self.apply_zoom(ctx);
 
         // 2. Render UI
         self.render_toolbar(ctx);

@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use portable_pty::PtySize;
-use tokio::sync::mpsc;
+use tokio::{runtime::Handle, sync::mpsc};
 use tracing::info;
 
 use crate::pty::ansi::StyledLine;
@@ -91,6 +91,7 @@ pub struct PanelManager {
     pub event_tx:  mpsc::UnboundedSender<PtyEvent>,
     max_buf_lines: usize,
     env_allowlist: Vec<String>,
+    runtime_handle: Handle,
     cwd:           PathBuf,
 }
 
@@ -99,6 +100,7 @@ impl PanelManager {
         event_tx:      mpsc::UnboundedSender<PtyEvent>,
         max_buf_lines: usize,
         env_allowlist: Vec<String>,
+        runtime_handle: Handle,
         cwd:           PathBuf,
     ) -> Self {
         Self {
@@ -109,6 +111,7 @@ impl PanelManager {
             event_tx,
             max_buf_lines,
             env_allowlist,
+            runtime_handle,
             cwd,
         }
     }
@@ -139,6 +142,7 @@ impl PanelManager {
             &args,
             &self.cwd,
             &self.env_allowlist,
+            self.runtime_handle.clone(),
             size,
             self.event_tx.clone(),
         )?;

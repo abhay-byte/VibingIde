@@ -60,6 +60,9 @@ impl AppConfig {
         if self.ui.output_buffer_lines < 100 || self.ui.output_buffer_lines > 100_000 {
             anyhow::bail!("ui.output_buffer_lines must be 100–100000");
         }
+        if !(0.5..=2.0).contains(&self.ui.zoom_factor) {
+            anyhow::bail!("ui.zoom_factor must be 0.5–2.0");
+        }
 
         // Security: validate env allowlist entries are valid identifier-like strings
         for key in &self.security.child_env_allowlist {
@@ -85,6 +88,8 @@ pub struct UiConfig {
     pub left_panel_width_pct:   u8,
     pub output_buffer_lines:    usize,
     pub scroll_speed:           u8,
+    pub auto_scale:             bool,
+    pub zoom_factor:            f32,
     pub show_panel_borders:     bool,
     pub show_status_bar:        bool,
 }
@@ -96,6 +101,8 @@ impl Default for UiConfig {
             left_panel_width_pct: 25,
             output_buffer_lines:  10_000,
             scroll_speed:         3,
+            auto_scale:           true,
+            zoom_factor:          1.0,
             show_panel_borders:   true,
             show_status_bar:      true,
         }

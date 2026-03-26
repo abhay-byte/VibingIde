@@ -6,11 +6,12 @@
 //! - PTY size is validated before passing to the kernel.
 //! - No `unsafe` code in this module; all unsafe is inside `portable-pty`.
 
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use portable_pty::{native_pty_system, ChildKiller, CommandBuilder, PtyPair, PtySize};
+use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
@@ -56,6 +57,7 @@ impl Supervisor {
         args: &[String],
         cwd: &PathBuf,
         env_allowlist: &[String],
+        runtime_handle: Handle,
         initial_size: PtySize,
         event_tx: mpsc::UnboundedSender<PtyEvent>,
     ) -> Result<Self> {
@@ -96,7 +98,7 @@ impl Supervisor {
             .context("failed to clone PTY reader")?;
         let pid_for_task = panel_id;
 
-        tokio::task::spawn_blocking(move || {
+        runtime_handle.spawn_blocking(move || {
             let mut buf = [0u8; 4096];
             loop {
                 match std::io::Read::read(&mut reader, &mut buf) {
@@ -202,7 +204,7 @@ fn apply_env_allowlist(cmd: &mut CommandBuilder, env_allowlist: &[String]) {
     }
 }
 
-fn build_launch_spec(command: &str, args: &[String], cwd: &Path) -> LaunchSpec {
+fn build_launch_spec(command: &str, args: &[String], _cwd: &Path) -> LaunchSpec {
     #[cfg(windows)]
     {
         return build_windows_launch_spec(command, args, cwd);
