@@ -425,6 +425,12 @@ fn sanitize_pty_size(size: PtySize) -> PtySize {
 mod tests {
     use super::*;
 
+    #[cfg(unix)]
+    use std::path::PathBuf;
+
+    #[cfg(unix)]
+    use tokio::time::{timeout, Duration};
+
     #[cfg(windows)]
     #[test]
     fn windows_resolution_prefers_real_executables_before_extensionless_shims() {
@@ -486,5 +492,109 @@ mod tests {
                 .to_string_lossy()
                 .to_ascii_lowercase()
         );
+    }
+
+    #[cfg(unix)]
+    fn test_env_allowlist() -> Vec<String> {
+        ["PATH", "TERM", "HOME", "LANG", "LC_ALL"]
+            .into_iter()
+            .map(String::from)
+            .collect()
+    }
+
+    #[cfg(unix)]
+    fn test_size() -> PtySize {
+        PtySize {
+            rows: 24,
+            cols: 80,
+            pixel_width: 0,
+            pixel_height: 0,
+        }
+    }
+
+    #[cfg(unix)]
+    fn test_cwd() -> PathBuf {
+        std::env::current_dir().expect("current dir")
+    }
+
+    #[cfg(unix)]
+    async fn wait_for_output(
+        rx: &mut mpsc::UnboundedReceiver<PtyEvent>,
+        needle: &str,
+    ) -> String {
+        let mut output = String::new();
+        while !output.contains(needle) {
+            let event = timeout(Duration::from_secs(10), rx.recv())
+                .await
+                .expect("timed out waiting for PTY event")
+                .expect("PTY channel closed unexpectedly");
+
+            match event {
+                PtyEvent::Output { data, .. } => output.push_str(&String::from_utf8_lossy(&data)),
+                PtyEvent::Exited { exit_code, .. } => {
+                    panic!("process exited before expected output {needle:?}: {exit_code:?}; output: {output:?}");
+                }
+            }
+        }
+        output
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn send_bytes_round_trips_raw_terminal_sequences() {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let mut supervisor = Supervisor::spawn(
+            1,
+            "/bin/sh",
+            &[
+                "-lc".into(),
+                "stty raw -echo; dd bs=1 count=3 2>/dev/null | od -An -t x1".into(),
+            ],
+            &test_cwd(),
+            &test_env_allowlist(),
+            Handle::current(),
+            test_size(),
+            tx,
+        )
+        .expect("spawn raw-byte test child");
+
+        supervisor
+            .send_bytes(b"\x1b[A")
+            .expect("send raw arrow sequence");
+
+        let output = wait_for_output(&mut rx, "1b 5b 41").await;
+        let _ = supervisor.kill();
+
+        assert!(output.contains("1b 5b 41"), "unexpected output: {output:?}");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn ctrl_c_reaches_the_child_process_as_sigint() {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let mut supervisor = Supervisor::spawn(
+            2,
+            "/bin/sh",
+            &[
+                "-lc".into(),
+                "trap 'printf INT\\n; exit 0' INT; printf READY\\n; while :; do sleep 1; done".into(),
+            ],
+            &test_cwd(),
+            &test_env_allowlist(),
+            Handle::current(),
+            test_size(),
+            tx,
+        )
+        .expect("spawn sigint test child");
+
+        let ready = wait_for_output(&mut rx, "READY").await;
+        assert!(ready.contains("READY"), "unexpected startup output: {ready:?}");
+
+        supervisor.send_bytes(&[0x03]).expect("send ctrl-c");
+
+        let output = wait_for_output(&mut rx, "INT").await;
+        let _ = supervisor.kill();
+
+        assert!(output.contains("INT"), "unexpected sigint output: {output:?}");
     }
 }

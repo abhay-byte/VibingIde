@@ -226,3 +226,29 @@ fn cube_channel(value: u8) -> u8 {
         _ => 255,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ansi_parser_tracks_application_cursor_mode_and_renders_alternate_screen() {
+        let mut parser = AnsiParser::new(6, 20, 100);
+        parser.feed(b"\x1b[?1049h\x1b[?1hHELLO");
+
+        assert!(parser.application_cursor());
+
+        let first_line = parser.lines()[0].plain_text();
+        assert!(first_line.starts_with("HELLO"), "screen contents were: {first_line:?}");
+    }
+
+    #[test]
+    fn ansi_parser_applies_basic_sgr_colors() {
+        let mut parser = AnsiParser::new(4, 10, 20);
+        parser.feed(b"\x1b[31mA");
+
+        let cell = &parser.lines()[0].cells[0];
+        assert_eq!(cell.ch, 'A');
+        assert_eq!(cell.style.fg, Some(Color32::from_rgb(205, 49, 49)));
+    }
+}

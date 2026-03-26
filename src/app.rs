@@ -1041,3 +1041,72 @@ trait TextStyleExt {
 impl TextStyleExt for crate::pty::ansi::TextStyle {
     fn italics(&self) -> bool { self.italic }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn key_event(key: Key, modifiers: Modifiers) -> Event {
+        Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers,
+        }
+    }
+
+    #[test]
+    fn text_and_paste_events_pass_through_to_terminal() {
+        assert_eq!(
+            terminal_bytes_for_event(&Event::Text("codex".into()), false),
+            Some(b"codex".to_vec())
+        );
+        assert_eq!(
+            terminal_bytes_for_event(&Event::Paste("hello\nworld".into()), false),
+            Some(b"hello\nworld".to_vec())
+        );
+    }
+
+    #[test]
+    fn ctrl_c_maps_to_interrupt_byte_but_quit_shortcuts_stay_reserved() {
+        let ctrl = Modifiers {
+            ctrl: true,
+            ..Default::default()
+        };
+        let ctrl_shift = Modifiers {
+            ctrl: true,
+            shift: true,
+            ..Default::default()
+        };
+
+        assert_eq!(
+            terminal_bytes_for_event(&key_event(Key::C, ctrl), false),
+            Some(vec![0x03])
+        );
+        assert_eq!(
+            terminal_bytes_for_event(&key_event(Key::Q, ctrl_shift), false),
+            None
+        );
+        assert_eq!(
+            terminal_bytes_for_event(&key_event(Key::W, ctrl), false),
+            None
+        );
+    }
+
+    #[test]
+    fn arrow_keys_follow_application_cursor_mode() {
+        assert_eq!(
+            terminal_bytes_for_event(&key_event(Key::ArrowUp, Modifiers::default()), false),
+            Some(b"\x1b[A".to_vec())
+        );
+        assert_eq!(
+            terminal_bytes_for_event(&key_event(Key::ArrowUp, Modifiers::default()), true),
+            Some(b"\x1bOA".to_vec())
+        );
+        assert_eq!(
+            terminal_bytes_for_event(&key_event(Key::Tab, Modifiers::default()), false),
+            Some(b"\t".to_vec())
+        );
+    }
+}
