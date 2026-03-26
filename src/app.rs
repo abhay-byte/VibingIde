@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use egui::{Color32, Event, FontId, Key, KeyboardShortcut, Modifiers, RichText, Ui, Vec2};
+use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::warn;
 
@@ -41,12 +42,39 @@ const BASE_WIDTH:    f32     = 1280.0;
 const BASE_HEIGHT:   f32     = 800.0;
 const MIN_AUTO_SCALE:f32     = 0.85;
 const MAX_AUTO_SCALE:f32     = 1.35;
+const PORTRAIT_BREAKPOINT: f32 = 900.0;
+const PORTRAIT_ASPECT_THRESHOLD: f32 = 1.05;
+const PORTRAIT_WORKSPACE_MIN_HEIGHT: f32 = 140.0;
+const PORTRAIT_WORKSPACE_MAX_HEIGHT: f32 = 280.0;
+const PORTRAIT_WORKSPACE_FRACTION: f32 = 0.30;
+const PERSISTED_UI_KEY: &str = "vibingide_ui_state";
 
 // ── App state ──────────────────────────────────────────────────────────────────
 
 /// Which view is active in the left sidebar.
 #[derive(PartialEq, Clone)]
 enum SidebarView { Files, History }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LayoutMode {
+    Wide,
+    Portrait,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PersistedUiState {
+    manual_zoom_factor: f32,
+    show_portrait_workspace: bool,
+}
+
+impl PersistedUiState {
+    fn from_config(config: &AppConfig) -> Self {
+        Self {
+            manual_zoom_factor: config.ui.zoom_factor,
+            show_portrait_workspace: true,
+        }
+    }
+}
 
 pub struct VibingApp {
     // Core subsystems
@@ -70,6 +98,7 @@ pub struct VibingApp {
     auto_scale:           bool,
     manual_zoom_factor:   f32,
     applied_zoom_factor:  f32,
+    show_portrait_workspace: bool,
 }
 
 fn split_cmdline(s: &str) -> Option<(String, Vec<String>)> {
@@ -83,14 +112,20 @@ fn split_cmdline(s: &str) -> Option<(String, Vec<String>)> {
 
 impl VibingApp {
     pub fn new(
-        _cc:         &eframe::CreationContext,
+        cc:          &eframe::CreationContext,
         project_root: PathBuf,
         config:       AppConfig,
         initial_cmd:  Option<String>,
         rt:           Arc<tokio::runtime::Runtime>,
     ) -> Self {
+        let persisted_ui = cc
+            .storage
+            .and_then(|storage| eframe::get_value::<PersistedUiState>(storage, PERSISTED_UI_KEY))
+            .unwrap_or_else(|| PersistedUiState::from_config(&config));
         let auto_scale = config.ui.auto_scale;
-        let manual_zoom_factor = config.ui.zoom_factor;
+        let manual_zoom_factor = persisted_ui
+            .manual_zoom_factor
+            .clamp(MIN_ZOOM, MAX_ZOOM);
         let project     = Project::open(project_root.clone()).expect("open project");
         let session_mgr = SessionManager::load(&project.vibide_dir).unwrap_or_default();
 
@@ -127,6 +162,7 @@ impl VibingApp {
             auto_scale,
             manual_zoom_factor,
             applied_zoom_factor:   manual_zoom_factor,
+            show_portrait_workspace: persisted_ui.show_portrait_workspace,
         }
     }
 
@@ -206,6 +242,17 @@ impl VibingApp {
         }
 
         self.applied_zoom_factor = target_zoom;
+    }
+
+    fn layout_mode(&self, ctx: &egui::Context) -> LayoutMode {
+        layout_mode_for_size(ctx.input(|i| i.screen_rect().size()))
+    }
+
+    fn persisted_ui_state(&self) -> PersistedUiState {
+        PersistedUiState {
+            manual_zoom_factor: self.manual_zoom_factor,
+            show_portrait_workspace: self.show_portrait_workspace,
+        }
     }
 
     fn handle_terminal_input(&mut self, ctx: &egui::Context) {
@@ -383,8 +430,10 @@ impl VibingApp {
     // ── Toolbar ───────────────────────────────────────────────────────────────
 
     fn render_toolbar(&mut self, ctx: &egui::Context) {
+        let layout_mode = self.layout_mode(ctx);
+        let toolbar_height = if layout_mode == LayoutMode::Portrait { 74.0 } else { 42.0 };
         egui::TopBottomPanel::top("toolbar")
-            .exact_height(42.0)
+            .exact_height(toolbar_height)
             .frame(egui::Frame::none()
                 .fill(Color32::from_rgb(12, 12, 20))
                 .inner_margin(egui::Margin::symmetric(12.0, 6.0))
@@ -397,91 +446,154 @@ impl VibingApp {
                     ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
                 }
 
-                ui.horizontal_centered(|ui| {
-                    // Logo
-                    ui.label(
-                        RichText::new("VibingIDE")
-                            .size(16.0)
-                            .strong()
-                            .color(Color32::from_rgb(160, 130, 255))
-                    );
-                    ui.label(
-                        RichText::new(format!("  {}", self.project.name))
-                            .size(13.0)
-                            .color(TEXT_DIM)
-                    );
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        // Window controls (Close)
-                        if ui.add(
-                            egui::Button::new(RichText::new(" ✕ ").color(Color32::WHITE).size(13.0))
-                                .fill(Color32::from_rgb(160, 40, 40))
+                if layout_mode == LayoutMode::Portrait {
+                    ui.vertical_centered(|ui| {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(
+                                RichText::new("VibingIDE")
+                                    .size(16.0)
+                                    .strong()
+                                    .color(Color32::from_rgb(160, 130, 255))
+                            );
+                            ui.label(
+                                RichText::new(&self.project.name)
+                                    .size(12.0)
+                                    .color(TEXT_DIM)
+                            );
+                            ui.label(
+                                RichText::new(format!("{:.0}% zoom", self.applied_zoom_factor * 100.0))
+                                    .color(TEXT_DIM)
+                                    .size(11.0)
+                            );
+                        });
+                        ui.horizontal_wrapped(|ui| {
+                            if ui.add(
+                                egui::Button::new(
+                                    RichText::new(if self.show_portrait_workspace { " Hide Workspace " } else { " Show Workspace " })
+                                        .color(Color32::WHITE)
+                                        .size(12.0)
+                                )
+                                .fill(Color32::from_rgb(50, 74, 120))
                                 .rounding(6.0)
-                        ).clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                        }
-                        
-                        // Window controls (Maximize)
-                        if ui.add(
-                            egui::Button::new(RichText::new(" □ ").color(TEXT_PRIMARY).size(13.0))
-                                .fill(Color32::from_rgb(40, 40, 65))
+                            ).clicked() {
+                                self.show_portrait_workspace = !self.show_portrait_workspace;
+                            }
+                            if ui.add(
+                                egui::Button::new(
+                                    RichText::new(" + New Panel ").color(Color32::WHITE).size(12.0).strong()
+                                )
+                                .fill(Color32::from_rgb(60, 160, 100))
                                 .rounding(6.0)
-                        ).clicked() {
-                            let is_max = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_max));
-                        }
-
-                        // Window controls (Minimize)
-                        if ui.add(
-                            egui::Button::new(RichText::new(" _ ").color(TEXT_PRIMARY).size(13.0))
-                                .fill(Color32::from_rgb(40, 40, 65))
-                                .rounding(6.0)
-                        ).clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-                        }
-                        ui.add_space(12.0);
-
-                        ui.label(
-                            RichText::new(format!("{:.0}% zoom", self.applied_zoom_factor * 100.0))
-                                .color(TEXT_DIM)
-                                .size(12.0)
-                        );
-                        ui.add_space(8.0);
-
-                        // Help toggle
-                        let help_fill = if self.show_help {
-                            Color32::from_rgb(60, 90, 180)
-                        } else {
-                            Color32::from_rgb(35, 50, 90)
-                        };
-                        if ui.add(
-                            egui::Button::new(RichText::new(" ? Help ").color(Color32::WHITE).size(13.0))
-                                .fill(help_fill)
-                                .rounding(6.0)
-                        ).clicked() {
-                            self.show_help = !self.show_help;
-                        }
-                        ui.add_space(6.0);
-
-                        // New Panel
-                        if ui.add(
-                            egui::Button::new(
-                                RichText::new(" + New Panel ").color(Color32::WHITE).size(13.0).strong()
-                            )
-                            .fill(Color32::from_rgb(60, 160, 100))
-                            .rounding(6.0)
-                        ).clicked() {
-                            self.show_new_panel_dialog = true;
-                        }
-                        ui.add_space(6.0);
+                            ).clicked() {
+                                self.show_new_panel_dialog = true;
+                            }
+                            let help_fill = if self.show_help {
+                                Color32::from_rgb(60, 90, 180)
+                            } else {
+                                Color32::from_rgb(35, 50, 90)
+                            };
+                            if ui.add(
+                                egui::Button::new(RichText::new(" ? Help ").color(Color32::WHITE).size(12.0))
+                                    .fill(help_fill)
+                                    .rounding(6.0)
+                            ).clicked() {
+                                self.show_help = !self.show_help;
+                            }
+                            self.render_window_controls(ctx, ui);
+                        });
                     });
-                });
+                } else {
+                    ui.horizontal_centered(|ui| {
+                        ui.label(
+                            RichText::new("VibingIDE")
+                                .size(16.0)
+                                .strong()
+                                .color(Color32::from_rgb(160, 130, 255))
+                        );
+                        ui.label(
+                            RichText::new(format!("  {}", self.project.name))
+                                .size(13.0)
+                                .color(TEXT_DIM)
+                        );
+
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            self.render_window_controls(ctx, ui);
+                            ui.add_space(12.0);
+
+                            ui.label(
+                                RichText::new(format!("{:.0}% zoom", self.applied_zoom_factor * 100.0))
+                                    .color(TEXT_DIM)
+                                    .size(12.0)
+                            );
+                            ui.add_space(8.0);
+
+                            let help_fill = if self.show_help {
+                                Color32::from_rgb(60, 90, 180)
+                            } else {
+                                Color32::from_rgb(35, 50, 90)
+                            };
+                            if ui.add(
+                                egui::Button::new(RichText::new(" ? Help ").color(Color32::WHITE).size(13.0))
+                                    .fill(help_fill)
+                                    .rounding(6.0)
+                            ).clicked() {
+                                self.show_help = !self.show_help;
+                            }
+                            ui.add_space(6.0);
+
+                            if ui.add(
+                                egui::Button::new(
+                                    RichText::new(" + New Panel ").color(Color32::WHITE).size(13.0).strong()
+                                )
+                                .fill(Color32::from_rgb(60, 160, 100))
+                                .rounding(6.0)
+                            ).clicked() {
+                                self.show_new_panel_dialog = true;
+                            }
+                            ui.add_space(6.0);
+                        });
+                    });
+                }
             });
     }
 
-    // ── Left sidebar ──────────────────────────────────────────────────────────
+    fn render_window_controls(&self, ctx: &egui::Context, ui: &mut Ui) {
+        if ui.add(
+            egui::Button::new(RichText::new(" ✕ ").color(Color32::WHITE).size(13.0))
+                .fill(Color32::from_rgb(160, 40, 40))
+                .rounding(6.0)
+        ).clicked() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
 
-    fn render_sidebar(&mut self, ctx: &egui::Context) {
+        if ui.add(
+            egui::Button::new(RichText::new(" □ ").color(TEXT_PRIMARY).size(13.0))
+                .fill(Color32::from_rgb(40, 40, 65))
+                .rounding(6.0)
+        ).clicked() {
+            let is_max = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_max));
+        }
+
+        if ui.add(
+            egui::Button::new(RichText::new(" _ ").color(TEXT_PRIMARY).size(13.0))
+                .fill(Color32::from_rgb(40, 40, 65))
+                .rounding(6.0)
+        ).clicked() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+        }
+    }
+
+    fn render_navigation_panels(&mut self, ctx: &egui::Context) {
+        match self.layout_mode(ctx) {
+            LayoutMode::Wide => self.render_wide_sidebar(ctx),
+            LayoutMode::Portrait => self.render_portrait_workspace(ctx),
+        }
+    }
+
+    // ── Navigation panels ─────────────────────────────────────────────────────
+
+    fn render_wide_sidebar(&mut self, ctx: &egui::Context) {
         egui::SidePanel::left("sidebar")
             .resizable(true)
             .default_width(240.0)
@@ -516,6 +628,95 @@ impl VibingApp {
                     SidebarView::Files   => self.render_file_tree(ui),
                     SidebarView::History => self.render_history_list(ui),
                 }
+            });
+    }
+
+    fn render_portrait_workspace(&mut self, ctx: &egui::Context) {
+        if !self.show_portrait_workspace {
+            return;
+        }
+
+        let height = ctx.input(|i| i.screen_rect().height());
+        let workspace_height = (height * PORTRAIT_WORKSPACE_FRACTION)
+            .clamp(PORTRAIT_WORKSPACE_MIN_HEIGHT, PORTRAIT_WORKSPACE_MAX_HEIGHT);
+
+        egui::TopBottomPanel::top("portrait_workspace")
+            .exact_height(workspace_height)
+            .frame(egui::Frame::none()
+                .fill(BG_SIDEBAR)
+                .stroke(egui::Stroke::new(1.0, BORDER_COLOR)))
+            .show(ctx, |ui| {
+                ui.add_space(6.0);
+                ui.horizontal_wrapped(|ui| {
+                    let files_active = self.sidebar_view == SidebarView::Files;
+                    let history_active = self.sidebar_view == SidebarView::History;
+
+                    if ui.add(tab_button("Files", files_active)).clicked() {
+                        self.sidebar_view = SidebarView::Files;
+                    }
+                    if ui.add(tab_button("History", history_active)).clicked() {
+                        self.sidebar_view = SidebarView::History;
+                    }
+                });
+                ui.add_space(6.0);
+                ui.separator();
+                ui.add_space(4.0);
+
+                match self.sidebar_view {
+                    SidebarView::Files => self.render_file_tree(ui),
+                    SidebarView::History => self.render_history_list(ui),
+                }
+            });
+    }
+
+    fn render_panel_switcher(&mut self, ctx: &egui::Context) {
+        if self.layout_mode(ctx) != LayoutMode::Portrait || self.panel_mgr.panels().is_empty() {
+            return;
+        }
+
+        let panel_tabs: Vec<(u32, String, PanelStatus)> = self
+            .panel_mgr
+            .panels()
+            .iter()
+            .map(|panel| (panel.id, panel.label.clone(), panel.status.clone()))
+            .collect();
+
+        egui::TopBottomPanel::top("portrait_panel_switcher")
+            .exact_height(52.0)
+            .frame(egui::Frame::none()
+                .fill(Color32::from_rgb(16, 16, 24))
+                .stroke(egui::Stroke::new(1.0, BORDER_COLOR)))
+            .show(ctx, |ui| {
+                egui::ScrollArea::horizontal()
+                    .auto_shrink([false, true])
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            for (panel_id, label, status) in &panel_tabs {
+                                let focused = self.panel_mgr.focused_id() == Some(*panel_id);
+                                let fill = if focused { ACCENT } else { BG_INPUT };
+                                let status_color = match status {
+                                    PanelStatus::Running { .. } => ACCENT_GREEN,
+                                    PanelStatus::Starting => ACCENT_YELLOW,
+                                    PanelStatus::Exited { .. } => TEXT_DIM,
+                                    PanelStatus::Crashed { .. } => ACCENT_RED,
+                                };
+
+                                let label = RichText::new(label)
+                                    .color(Color32::WHITE)
+                                    .size(12.0)
+                                    .strong();
+
+                                if ui.add(
+                                    egui::Button::new(label)
+                                        .fill(fill)
+                                        .stroke(egui::Stroke::new(1.0, status_color))
+                                        .rounding(8.0)
+                                ).clicked() {
+                                    self.panel_mgr.set_focus(*panel_id);
+                                }
+                            }
+                        });
+                    });
             });
     }
 
@@ -569,188 +770,194 @@ impl VibingApp {
                     return;
                 }
 
-                // Global keyboard shortcuts
-                if ctx.input(|i| i.key_pressed(egui::Key::N) && i.modifiers.ctrl) {
-                    self.show_new_panel_dialog = true;
-                }
-                if ctx.input(|i| i.key_pressed(egui::Key::W) && i.modifiers.ctrl) {
-                    if let Some(panel_id) = self.panel_mgr.focused_id() {
-                        self.panel_mgr.close_panel(panel_id);
-                    }
-                }
-                if ctx.input(|i| i.key_pressed(egui::Key::CloseBracket) && i.modifiers.ctrl) {
-                    self.panel_mgr.focus_next();
-                }
-                if ctx.input(|i| i.key_pressed(egui::Key::OpenBracket) && i.modifiers.ctrl) {
-                    self.panel_mgr.focus_prev();
-                }
-                if ctx.input(|i| i.key_pressed(egui::Key::Q) && i.modifiers.ctrl && i.modifiers.shift) {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                }
+                self.handle_panel_shortcuts(ctx);
 
-                let panel_ids: Vec<u32> = self.panel_mgr.panels().iter().map(|p| p.id).collect();
-                let n = panel_ids.len();
-                let available = ui.available_size();
-                let panel_width = (available.x / n as f32).floor();
+                match self.layout_mode(ctx) {
+                    LayoutMode::Wide => self.render_panels_wide(ui, ctx),
+                    LayoutMode::Portrait => self.render_panels_portrait(ui, ctx),
+                }
+            });
+    }
 
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing = Vec2::ZERO;
+    fn handle_panel_shortcuts(&mut self, ctx: &egui::Context) {
+        if ctx.input(|i| i.key_pressed(egui::Key::N) && i.modifiers.ctrl) {
+            self.show_new_panel_dialog = true;
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::W) && i.modifiers.ctrl) {
+            if let Some(panel_id) = self.panel_mgr.focused_id() {
+                self.panel_mgr.close_panel(panel_id);
+            }
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::CloseBracket) && i.modifiers.ctrl) {
+            self.panel_mgr.focus_next();
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::OpenBracket) && i.modifiers.ctrl) {
+            self.panel_mgr.focus_prev();
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::Q) && i.modifiers.ctrl && i.modifiers.shift) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+    }
 
-                    for panel_id in panel_ids {
-                        let focused = self.panel_mgr.focused_id() == Some(panel_id);
+    fn render_panels_wide(&mut self, ui: &mut Ui, ctx: &egui::Context) {
+        let panel_ids: Vec<u32> = self.panel_mgr.panels().iter().map(|p| p.id).collect();
+        let n = panel_ids.len();
+        let available = ui.available_size();
+        let panel_width = (available.x / n as f32).floor();
 
-                        // Collect needed info before mutable borrow
-                        let (label, status) = {
-                            let p = self.panel_mgr.panel(panel_id).unwrap();
-                            (
-                                p.label.clone(),
-                                p.status.clone(),
-                            )
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing = Vec2::ZERO;
+            for panel_id in panel_ids {
+                let (panel_rect, _) = ui.allocate_exact_size(
+                    Vec2::new(panel_width, available.y),
+                    egui::Sense::hover(),
+                );
+                let mut child_ui = ui.child_ui(panel_rect, *ui.layout());
+                self.render_panel_card(&mut child_ui, ctx, panel_id);
+            }
+        });
+    }
+
+    fn render_panels_portrait(&mut self, ui: &mut Ui, ctx: &egui::Context) {
+        let focused_id = self
+            .panel_mgr
+            .focused_id()
+            .or_else(|| self.panel_mgr.panels().first().map(|panel| panel.id));
+
+        if let Some(panel_id) = focused_id {
+            self.panel_mgr.set_focus(panel_id);
+            self.render_panel_card(ui, ctx, panel_id);
+        }
+    }
+
+    fn render_panel_card(&mut self, ui: &mut Ui, ctx: &egui::Context, panel_id: u32) {
+        let focused = self.panel_mgr.focused_id() == Some(panel_id);
+        let (label, status) = {
+            let p = self.panel_mgr.panel(panel_id).unwrap();
+            (p.label.clone(), p.status.clone())
+        };
+
+        let border = if focused { ACCENT } else { BORDER_COLOR };
+        let panel_frame = egui::Frame::none()
+            .fill(BG_PANEL)
+            .stroke(egui::Stroke::new(if focused { 1.5 } else { 1.0 }, border))
+            .rounding(4.0)
+            .inner_margin(egui::Margin::same(0.0));
+
+        panel_frame.show(ui, |ui| {
+            if ui
+                .interact(ui.max_rect(), egui::Id::new(("panel_bg", panel_id)), egui::Sense::click())
+                .clicked()
+            {
+                self.panel_mgr.set_focus(panel_id);
+            }
+
+            ui.vertical(|ui| {
+                let header_bg = if focused {
+                    Color32::from_rgb(28, 22, 55)
+                } else {
+                    Color32::from_rgb(20, 20, 32)
+                };
+
+                egui::Frame::none()
+                    .fill(header_bg)
+                    .inner_margin(egui::Margin::symmetric(8.0, 4.0))
+                    .show(ui, |ui| {
+                        ui.horizontal_wrapped(|ui| {
+                            let (dot, dot_color) = match &status {
+                                PanelStatus::Starting => ("[+]", ACCENT_YELLOW),
+                                PanelStatus::Running { .. } => ("[R]", ACCENT_GREEN),
+                                PanelStatus::Exited { .. } => ("[E]", TEXT_DIM),
+                                PanelStatus::Crashed { .. } => ("[X]", ACCENT_RED),
+                            };
+                            ui.label(RichText::new(dot).color(dot_color).size(11.0));
+                            ui.label(
+                                RichText::new(&label)
+                                    .color(if focused { TEXT_PRIMARY } else { TEXT_DIM })
+                                    .size(13.0)
+                                    .strong()
+                            );
+                            if let PanelStatus::Running { pid } = &status {
+                                ui.label(RichText::new(format!("pid:{pid}")).color(TEXT_DIM).size(11.0));
+                            }
+                            if ui.add(
+                                egui::Button::new(RichText::new("X").color(ACCENT_RED).size(12.0))
+                                    .fill(Color32::TRANSPARENT)
+                                    .frame(false)
+                            ).on_hover_text("Close panel")
+                            .clicked() {
+                                self.panel_mgr.close_panel(panel_id);
+                            }
+                        });
+                    });
+
+                ui.add(egui::Separator::default().horizontal().spacing(0.0));
+
+                let output_height = ui.available_height() - 28.0;
+                egui::Frame::none()
+                    .fill(BG_DARK)
+                    .inner_margin(egui::Margin::symmetric(8.0, 4.0))
+                    .show(ui, |ui| {
+                        ui.set_min_height(output_height.max(40.0));
+                        ui.set_max_height(output_height.max(40.0));
+                        let (cols, rows) = terminal_grid_size(ctx, ui.available_size());
+                        self.panel_mgr.resize_panel(panel_id, cols, rows);
+
+                        let output_snapshot = self
+                            .panel_mgr
+                            .panel(panel_id)
+                            .map(|p| p.terminal.lines().to_vec())
+                            .unwrap_or_default();
+
+                        ui.spacing_mut().item_spacing.y = 0.0;
+
+                        if output_snapshot.is_empty() {
+                            ui.label(
+                                RichText::new("Waiting for terminal output…")
+                                    .color(TEXT_DIM)
+                                    .size(12.0)
+                                    .italics()
+                            );
+                        } else {
+                            for line in &output_snapshot {
+                                ui.label(layout_terminal_line(line));
+                            }
+                        }
+                    });
+
+                ui.add(egui::Separator::default().horizontal().spacing(0.0));
+
+                egui::Frame::none()
+                    .fill(BG_INPUT)
+                    .inner_margin(egui::Margin::symmetric(8.0, 6.0))
+                    .show(ui, |ui| {
+                        let is_running = matches!(status, PanelStatus::Running { .. });
+                        let status_text = if is_running {
+                            "Direct terminal mode: type directly into the focused panel"
+                        } else {
+                            "Panel is not running"
                         };
 
-                        let border = if focused { ACCENT } else { BORDER_COLOR };
-                        let panel_frame = egui::Frame::none()
-                            .fill(BG_PANEL)
-                            .stroke(egui::Stroke::new(if focused { 1.5 } else { 1.0 }, border))
-                            .rounding(4.0)
-                            .inner_margin(egui::Margin::same(0.0));
-
-                        // Layout slot
-                        let (panel_rect, _) = ui.allocate_exact_size(
-                            Vec2::new(panel_width, available.y),
-                            egui::Sense::hover(),
-                        );
-
-                        let mut child_ui = ui.child_ui(panel_rect, *ui.layout());
-
-                        panel_frame.show(&mut child_ui, |ui| {
-                            // Click anywhere to focus
-                            if ui.interact(ui.max_rect(), egui::Id::new(("panel_bg", panel_id)), egui::Sense::click()).clicked() {
-                                self.panel_mgr.set_focus(panel_id);
-                            }
-
-                            ui.vertical(|ui| {
-                                // ── Header bar ──────────────────────────────
-                                let header_bg = if focused {
-                                    Color32::from_rgb(28, 22, 55)
-                                } else {
-                                    Color32::from_rgb(20, 20, 32)
-                                };
-                                egui::Frame::none()
-                                    .fill(header_bg)
-                                    .inner_margin(egui::Margin::symmetric(8.0, 4.0))
-                                    .show(ui, |ui| {
-                                        ui.horizontal(|ui| {
-                                            // Status dot
-                                            let (dot, dot_color) = match &status {
-                                                PanelStatus::Starting       => ("[+]", ACCENT_YELLOW),
-                                                PanelStatus::Running { .. } => ("[R]",  ACCENT_GREEN),
-                                                PanelStatus::Exited  { .. } => ("[E]",  TEXT_DIM),
-                                                PanelStatus::Crashed { .. } => ("[X]",  ACCENT_RED),
-                                            };
-                                            ui.label(RichText::new(dot).color(dot_color).size(11.0));
-
-                                            // Panel label
-                                            ui.label(
-                                                RichText::new(&label)
-                                                    .color(if focused { TEXT_PRIMARY } else { TEXT_DIM })
-                                                    .size(13.0)
-                                                    .strong()
-                                            );
-
-                                            // PID info
-                                            if let PanelStatus::Running { pid } = &status {
-                                                ui.label(RichText::new(format!("pid:{pid}")).color(TEXT_DIM).size(11.0));
-                                            }
-
-                                            // Close button on right
-                                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                                if ui.add(
-                                                    egui::Button::new(RichText::new("X").color(ACCENT_RED).size(12.0))
-                                                        .fill(Color32::TRANSPARENT)
-                                                        .frame(false)
-                                                        .sense(egui::Sense::click())
-                                                ).on_hover_text("Close panel")
-                                                .clicked() {
-                                                    self.panel_mgr.close_panel(panel_id);
-                                                }
-                                            });
-                                        });
-                                    });
-
-                                ui.add(egui::Separator::default().horizontal().spacing(0.0));
-
-                                // ── Output area ─────────────────────────────
-                                let output_height = ui.available_height() - 28.0;
-                                let output_frame = egui::Frame::none()
-                                    .fill(BG_DARK)
-                                    .inner_margin(egui::Margin::symmetric(8.0, 4.0));
-
-                                output_frame.show(ui, |ui| {
-                                    ui.set_min_height(output_height.max(40.0));
-                                    ui.set_max_height(output_height.max(40.0));
-                                    let (cols, rows) = terminal_grid_size(ctx, ui.available_size());
-                                    self.panel_mgr.resize_panel(panel_id, cols, rows);
-
-                                    let output_snapshot = self
-                                        .panel_mgr
-                                        .panel(panel_id)
-                                        .map(|p| p.terminal.lines().to_vec())
-                                        .unwrap_or_default();
-
-                                    ui.spacing_mut().item_spacing.y = 0.0;
-
-                                    if output_snapshot.is_empty() {
-                                        ui.label(
-                                            RichText::new("Waiting for terminal output…")
-                                                .color(TEXT_DIM)
-                                                .size(12.0)
-                                                .italics()
-                                        );
-                                    } else {
-                                        for line in &output_snapshot {
-                                            ui.label(layout_terminal_line(line));
-                                        }
-                                    }
-                                });
-
-                                // ── Terminal status bar ─────────────────────
-                                ui.add(egui::Separator::default().horizontal().spacing(0.0));
-
-                                egui::Frame::none()
-                                    .fill(BG_INPUT)
-                                    .inner_margin(egui::Margin::symmetric(8.0, 6.0))
-                                    .show(ui, |ui| {
-                                        let is_running = matches!(status, PanelStatus::Running { .. });
-                                        let status_text = if is_running {
-                                            "Direct terminal mode: type directly into the focused panel"
-                                        } else {
-                                            "Panel is not running"
-                                        };
-
-                                        ui.horizontal_wrapped(|ui| {
-                                            ui.label(
-                                                RichText::new(">")
-                                                    .color(if is_running { ACCENT_GREEN } else { TEXT_DIM })
-                                                    .size(15.0)
-                                            );
-                                            ui.label(
-                                                RichText::new(status_text)
-                                                    .color(TEXT_PRIMARY)
-                                                    .size(12.0)
-                                            );
-                                            ui.label(
-                                                RichText::new("Ctrl+C sends SIGINT. Ctrl+Shift+Q quits VibingIDE.")
-                                                    .color(TEXT_DIM)
-                                                    .size(11.0)
-                                            );
-                                        });
-                                    });
-                            });
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(
+                                RichText::new(">")
+                                    .color(if is_running { ACCENT_GREEN } else { TEXT_DIM })
+                                    .size(15.0)
+                            );
+                            ui.label(
+                                RichText::new(status_text)
+                                    .color(TEXT_PRIMARY)
+                                    .size(12.0)
+                            );
+                            ui.label(
+                                RichText::new("Ctrl+C sends SIGINT. Ctrl+Shift+Q quits VibingIDE.")
+                                    .color(TEXT_DIM)
+                                    .size(11.0)
+                            );
                         });
-                    }
-                });
+                    });
             });
+        });
     }
 
     fn render_empty_state(&mut self, ui: &mut Ui) {
@@ -789,6 +996,10 @@ impl VibingApp {
 }
 
 impl eframe::App for VibingApp {
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, PERSISTED_UI_KEY, &self.persisted_ui_state());
+    }
+
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // 1. Drain PTY events (non-blocking)
         self.drain_pty_events();
@@ -798,7 +1009,8 @@ impl eframe::App for VibingApp {
 
         // 2. Render UI
         self.render_toolbar(ctx);
-        self.render_sidebar(ctx);
+        self.render_navigation_panels(ctx);
+        self.render_panel_switcher(ctx);
         self.render_panels(ctx);
 
         // 3. Overlays
@@ -868,6 +1080,14 @@ fn push_terminal_run(job: &mut egui::text::LayoutJob, text: &str, style: crate::
         ..Default::default()
     };
     job.append(text, 0.0, format);
+}
+
+fn layout_mode_for_size(size: Vec2) -> LayoutMode {
+    if size.x <= PORTRAIT_BREAKPOINT || size.y > size.x * PORTRAIT_ASPECT_THRESHOLD {
+        LayoutMode::Portrait
+    } else {
+        LayoutMode::Wide
+    }
 }
 
 fn terminal_grid_size(ctx: &egui::Context, size: Vec2) -> (u16, u16) {
@@ -1108,5 +1328,12 @@ mod tests {
             terminal_bytes_for_event(&key_event(Key::Tab, Modifiers::default()), false),
             Some(b"\t".to_vec())
         );
+    }
+
+    #[test]
+    fn portrait_layout_is_selected_for_tall_or_narrow_windows() {
+        assert_eq!(layout_mode_for_size(Vec2::new(480.0, 960.0)), LayoutMode::Portrait);
+        assert_eq!(layout_mode_for_size(Vec2::new(820.0, 700.0)), LayoutMode::Portrait);
+        assert_eq!(layout_mode_for_size(Vec2::new(1280.0, 800.0)), LayoutMode::Wide);
     }
 }
