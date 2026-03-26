@@ -1,5 +1,6 @@
 # DONE
 
+- 2026-03-26: Reworked agent panels to behave like direct terminals for full-screen TUIs such as `codex` by switching to per-panel `vt100` screen emulation, forwarding raw keyboard input to the focused PTY, updating the panel chrome/help text for direct terminal mode, and refreshing the Linux launchers after rebuilding release. Commit: `462b782`
 - 2026-03-26: Switched the managed Linux launcher from `RUST_BACKTRACE=1` to `RUST_BACKTRACE=full` by default so zsh launches, desktop entries, and the XFCE menu emit verbose Rust backtraces unless explicitly overridden. Commit: `4b07234`
 - 2026-03-26: Enabled `RUST_BACKTRACE=1` by default in the managed Linux launcher so `vibingide` runs from zsh, desktop entries, and the XFCE menu produce Rust backtraces unless explicitly overridden. Commit: `246310f`
 - 2026-03-26: Fixed the Tokio runtime panic that crashed agent launches like `codex`, downgraded the lockfile to keep Debian's Rust 1.85 buildable, made the Linux launcher symlink-safe for PATH installs, and added automatic/manual app scaling with `Ctrl++`, `Ctrl+=`, `Ctrl+-`, and `Ctrl+0`. Commit: `1b8d8a3`
