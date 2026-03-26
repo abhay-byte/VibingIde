@@ -13,6 +13,9 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 RELEASE_EXE="${REPO_ROOT}/target/release/vibingide"
 DEBUG_EXE="${REPO_ROOT}/target/debug/vibingide"
 
+# Default to Rust backtraces for launcher-driven runs unless the user overrides it.
+export RUST_BACKTRACE="${RUST_BACKTRACE:-1}"
+
 if [[ -x "${RELEASE_EXE}" ]]; then
   cd "${REPO_ROOT}"
   exec "${RELEASE_EXE}" "$@"
