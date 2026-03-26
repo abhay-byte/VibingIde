@@ -1,5 +1,6 @@
 # DONE
 
+- 2026-03-26: Enabled `RUST_BACKTRACE=1` by default in the managed Linux launcher so `vibingide` runs from zsh, desktop entries, and the XFCE menu produce Rust backtraces unless explicitly overridden. Commit: `246310f`
 - 2026-03-26: Fixed the Tokio runtime panic that crashed agent launches like `codex`, downgraded the lockfile to keep Debian's Rust 1.85 buildable, made the Linux launcher symlink-safe for PATH installs, and added automatic/manual app scaling with `Ctrl++`, `Ctrl+=`, `Ctrl+-`, and `Ctrl+0`. Commit: `1b8d8a3`
 - 2026-03-25: Fixed the Windows agent launch path so VibingIDE now resolves native executables before shim files, preserves a safer child environment, records real child PIDs, and kills/waits for processes more cleanly. Commit: `9e147f1`
 - 2026-03-25: Added repo workflow tracking files (`WORKFLOW.md`, `TODO.md`, `DONE.md`) plus a GitHub Actions CI workflow for `cargo check` and Windows test runs. Commit: `83157a4`
