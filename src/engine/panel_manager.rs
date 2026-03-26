@@ -1,6 +1,5 @@
 //! Panel manager — CRUD for agent panels, focus tracking.
 
-use std::collections::VecDeque;
 use std::path::PathBuf;
 
 use anyhow::Result;
@@ -8,7 +7,7 @@ use portable_pty::PtySize;
 use tokio::{runtime::Handle, sync::mpsc};
 use tracing::info;
 
-use crate::pty::ansi::StyledLine;
+use crate::pty::ansi::AnsiParser;
 use crate::pty::supervisor::{PanelId, PtyEvent, Supervisor};
 
 // ── Panel data ────────────────────────────────────────────────────────────────
@@ -28,10 +27,8 @@ pub struct AgentPanel {
     pub args:       Vec<String>,
     pub status:     PanelStatus,
     pub session_id: String,
-    /// Output ring buffer (max 10k lines).
-    pub output_buf: VecDeque<StyledLine>,
-    /// Current text in input bar.
-    pub input_buf:  String,
+    /// Per-panel terminal screen state.
+    pub terminal:   AnsiParser,
     /// Lines scrolled up from bottom (0 = at bottom).
     pub scroll_pos: usize,
 }
@@ -43,6 +40,8 @@ impl AgentPanel {
         command: String,
         args: Vec<String>,
         session_id: String,
+        term_size: (u16, u16),
+        scrollback_len: usize,
     ) -> Self {
         Self {
             id,
@@ -51,24 +50,13 @@ impl AgentPanel {
             args,
             status:     PanelStatus::Starting,
             session_id,
-            output_buf: VecDeque::with_capacity(1024),
-            input_buf:  String::new(),
+            terminal:   AnsiParser::new(term_size.1, term_size.0, scrollback_len),
             scroll_pos: 0,
         }
     }
 
-    /// Push lines into the output ring buffer, capping at `max_lines`.
-    pub fn push_lines(&mut self, lines: Vec<StyledLine>, max_lines: usize) {
-        for line in lines {
-            if self.output_buf.len() >= max_lines {
-                self.output_buf.pop_front();
-            }
-            self.output_buf.push_back(line);
-        }
-    }
-
     pub fn scroll_up(&mut self, n: usize) {
-        let max = self.output_buf.len().saturating_sub(1);
+        let max = self.terminal.lines().len().saturating_sub(1);
         self.scroll_pos = (self.scroll_pos + n).min(max);
     }
 
@@ -149,7 +137,15 @@ impl PanelManager {
 
         // Only commit panel to state if spawn succeeded
         self.next_id += 1;
-        let mut panel = AgentPanel::new(id, label, command.clone(), args.clone(), session_id);
+        let mut panel = AgentPanel::new(
+            id,
+            label,
+            command.clone(),
+            args.clone(),
+            session_id,
+            term_size,
+            self.max_buf_lines,
+        );
         panel.status = PanelStatus::Running {
             pid: supervisor.process_id().unwrap_or(0),
         };
@@ -165,6 +161,15 @@ impl PanelManager {
         if let Some(idx) = self.panel_index(panel_id) {
             if let Some(Some(sup)) = self.supervisors.get_mut(idx) {
                 return sup.send_input(text);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn send_bytes(&mut self, panel_id: PanelId, bytes: &[u8]) -> Result<()> {
+        if let Some(idx) = self.panel_index(panel_id) {
+            if let Some(Some(sup)) = self.supervisors.get_mut(idx) {
+                return sup.send_bytes(bytes);
             }
         }
         Ok(())
@@ -186,16 +191,9 @@ impl PanelManager {
         }
     }
 
-    pub fn handle_output(
-        &mut self,
-        panel_id:    PanelId,
-        ansi_parser: &mut crate::pty::ansi::AnsiParser,
-        data:        Vec<u8>,
-    ) {
-        let lines = ansi_parser.feed(&data);
-        let max   = self.max_buf_lines;
+    pub fn handle_output(&mut self, panel_id: PanelId, data: Vec<u8>) {
         if let Some(panel) = self.panel_mut(panel_id) {
-            panel.push_lines(lines, max);
+            panel.terminal.feed(&data);
         }
     }
 
@@ -241,6 +239,10 @@ impl PanelManager {
         self.panels.iter_mut().find(|p| p.id == id)
     }
 
+    pub fn panel(&self, panel_id: PanelId) -> Option<&AgentPanel> {
+        self.panels.iter().find(|p| p.id == panel_id)
+    }
+
     pub fn panels(&self)     -> &[AgentPanel] { &self.panels }
     pub fn focused_id(&self) -> Option<PanelId> { self.focused }
 
@@ -249,6 +251,21 @@ impl PanelManager {
         let panel_rows = (rows / n as u16).max(2);
         for sup in self.supervisors.iter().flatten() {
             let _ = sup.resize(cols, panel_rows);
+        }
+    }
+
+    pub fn resize_panel(&mut self, panel_id: PanelId, cols: u16, rows: u16) {
+        let cols = cols.max(8);
+        let rows = rows.max(2);
+        if let Some(idx) = self.panel_index(panel_id) {
+            if let Some(panel) = self.panels.get_mut(idx) {
+                if panel.terminal.size() != (cols, rows) {
+                    panel.terminal.resize(rows, cols);
+                }
+            }
+            if let Some(Some(supervisor)) = self.supervisors.get(idx) {
+                let _ = supervisor.resize(cols, rows);
+            }
         }
     }
 

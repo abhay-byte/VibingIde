@@ -8,7 +8,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use egui::{Color32, FontId, Key, KeyboardShortcut, Modifiers, RichText, Ui, Vec2};
+use egui::{Color32, Event, FontId, Key, KeyboardShortcut, Modifiers, RichText, Ui, Vec2};
 use tokio::sync::mpsc;
 use tracing::warn;
 
@@ -18,7 +18,7 @@ use crate::engine::{
     project::Project,
     session_manager::SessionManager,
 };
-use crate::pty::{ansi::AnsiParser, supervisor::PtyEvent};
+use crate::pty::supervisor::PtyEvent;
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
 
@@ -54,7 +54,6 @@ pub struct VibingApp {
     config:      AppConfig,
     session_mgr: SessionManager,
     panel_mgr:   PanelManager,
-    ansi_parser: AnsiParser,
 
     // PTY event receiver (polled each frame)
     pty_rx: mpsc::UnboundedReceiver<PtyEvent>,
@@ -118,7 +117,6 @@ impl VibingApp {
             config,
             session_mgr,
             panel_mgr,
-            ansi_parser: AnsiParser::new(),
             pty_rx,
             _rt: rt,
             sidebar_view:          SidebarView::Files,
@@ -210,13 +208,37 @@ impl VibingApp {
         self.applied_zoom_factor = target_zoom;
     }
 
+    fn handle_terminal_input(&mut self, ctx: &egui::Context) {
+        if self.show_new_panel_dialog || self.show_help {
+            return;
+        }
+
+        let Some(panel_id) = self.panel_mgr.focused_id() else {
+            return;
+        };
+        let Some(panel) = self.panel_mgr.panel(panel_id) else {
+            return;
+        };
+        if !matches!(panel.status, PanelStatus::Running { .. }) {
+            return;
+        }
+
+        let application_cursor = panel.terminal.application_cursor();
+        let events = ctx.input(|i| i.events.clone());
+        for event in events {
+            if let Some(bytes) = terminal_bytes_for_event(&event, application_cursor) {
+                let _ = self.panel_mgr.send_bytes(panel_id, &bytes);
+            }
+        }
+    }
+
     // ── PTY event drain ────────────────────────────────────────────────────────
 
     fn drain_pty_events(&mut self) {
         loop {
             match self.pty_rx.try_recv() {
                 Ok(PtyEvent::Output { panel_id, data }) => {
-                    self.panel_mgr.handle_output(panel_id, &mut self.ansi_parser, data);
+                    self.panel_mgr.handle_output(panel_id, data);
                 }
                 Ok(PtyEvent::Exited { panel_id, exit_code }) => {
                     self.panel_mgr.handle_exit(panel_id, exit_code);
@@ -339,11 +361,11 @@ impl VibingApp {
                     ("Ctrl+]",       "Focus next panel"),
                     ("Ctrl+[",       "Focus previous panel"),
                     ("Ctrl+W",       "Close focused panel"),
-                    ("Ctrl+C",       "Quit"),
-                    ("Mouse scroll", "Scroll panel output"),
+                    ("Ctrl+C",       "Send SIGINT to focused terminal"),
+                    ("Ctrl+Shift+Q", "Quit VibingIDE"),
                     ("Click panel",  "Focus that panel"),
                     ("Click [X]",    "Close that panel"),
-                    ("Click [>]",    "Send input to panel"),
+                    ("Type directly", "Send keys to focused terminal"),
                 ];
                 for (key, desc) in entries {
                     ui.horizontal(|ui| {
@@ -551,7 +573,18 @@ impl VibingApp {
                 if ctx.input(|i| i.key_pressed(egui::Key::N) && i.modifiers.ctrl) {
                     self.show_new_panel_dialog = true;
                 }
-                if ctx.input(|i| i.key_pressed(egui::Key::C) && i.modifiers.ctrl) {
+                if ctx.input(|i| i.key_pressed(egui::Key::W) && i.modifiers.ctrl) {
+                    if let Some(panel_id) = self.panel_mgr.focused_id() {
+                        self.panel_mgr.close_panel(panel_id);
+                    }
+                }
+                if ctx.input(|i| i.key_pressed(egui::Key::CloseBracket) && i.modifiers.ctrl) {
+                    self.panel_mgr.focus_next();
+                }
+                if ctx.input(|i| i.key_pressed(egui::Key::OpenBracket) && i.modifiers.ctrl) {
+                    self.panel_mgr.focus_prev();
+                }
+                if ctx.input(|i| i.key_pressed(egui::Key::Q) && i.modifiers.ctrl && i.modifiers.shift) {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
 
@@ -567,14 +600,11 @@ impl VibingApp {
                         let focused = self.panel_mgr.focused_id() == Some(panel_id);
 
                         // Collect needed info before mutable borrow
-                        let (label, status, output_snapshot, scroll_pos, input_buf) = {
-                            let p = self.panel_mgr.panels().iter().find(|p| p.id == panel_id).unwrap();
+                        let (label, status) = {
+                            let p = self.panel_mgr.panel(panel_id).unwrap();
                             (
                                 p.label.clone(),
                                 p.status.clone(),
-                                p.output_buf.iter().cloned().collect::<Vec<_>>(),
-                                p.scroll_pos,
-                                p.input_buf.clone(),
                             )
                         };
 
@@ -651,7 +681,7 @@ impl VibingApp {
                                 ui.add(egui::Separator::default().horizontal().spacing(0.0));
 
                                 // ── Output area ─────────────────────────────
-                                let output_height = ui.available_height() - 50.0;
+                                let output_height = ui.available_height() - 28.0;
                                 let output_frame = egui::Frame::none()
                                     .fill(BG_DARK)
                                     .inner_margin(egui::Margin::symmetric(8.0, 4.0));
@@ -659,147 +689,61 @@ impl VibingApp {
                                 output_frame.show(ui, |ui| {
                                     ui.set_min_height(output_height.max(40.0));
                                     ui.set_max_height(output_height.max(40.0));
+                                    let (cols, rows) = terminal_grid_size(ctx, ui.available_size());
+                                    self.panel_mgr.resize_panel(panel_id, cols, rows);
 
-                                    // Scroll area: user can scroll up through history
-                                    let scroll = egui::ScrollArea::vertical()
-                                        .auto_shrink([false, false])
-                                        .stick_to_bottom(scroll_pos == 0)
-                                        .id_source(format!("panelout_{panel_id}"));
+                                    let output_snapshot = self
+                                        .panel_mgr
+                                        .panel(panel_id)
+                                        .map(|p| p.terminal.lines().to_vec())
+                                        .unwrap_or_default();
 
-                                    scroll.show(ui, |ui: &mut egui::Ui| {
-                                        if output_snapshot.is_empty() {
-                                            ui.label(
-                                                RichText::new("Waiting for output…")
-                                                    .color(TEXT_DIM)
-                                                    .size(12.0)
-                                                    .italics()
-                                            );
-                                        }
+                                    ui.spacing_mut().item_spacing.y = 0.0;
+
+                                    if output_snapshot.is_empty() {
+                                        ui.label(
+                                            RichText::new("Waiting for terminal output…")
+                                                .color(TEXT_DIM)
+                                                .size(12.0)
+                                                .italics()
+                                        );
+                                    } else {
                                         for line in &output_snapshot {
-                                            // Render each styled line
-                                            // Render grouped styled text using LayoutJob
-                                            let mut job = egui::text::LayoutJob::default();
-                                            job.wrap.break_anywhere = true;
-                                            job.wrap.max_width = ui.available_width();
-                                            
-                                            let mut current_text = String::new();
-                                            if !line.cells.is_empty() {
-                                                let mut current_style = &line.cells[0].style;
-                                                for cell in &line.cells {
-                                                    if &cell.style != current_style {
-                                                        let fg = current_style.fg.unwrap_or(TEXT_PRIMARY);
-                                                        let bg = current_style.bg.unwrap_or(Color32::TRANSPARENT);
-                                                        let format = egui::text::TextFormat {
-                                                            font_id: FontId::monospace(13.0),
-                                                            color: fg,
-                                                            background: bg,
-                                                            italics: current_style.text.italics(),
-                                                            ..Default::default()
-                                                        };
-                                                        job.append(&current_text, 0.0, format);
-                                                        current_text.clear();
-                                                        current_style = &cell.style;
-                                                    }
-                                                    current_text.push(cell.ch);
-                                                }
-                                                if !current_text.is_empty() {
-                                                    let fg = current_style.fg.unwrap_or(TEXT_PRIMARY);
-                                                    let bg = current_style.bg.unwrap_or(Color32::TRANSPARENT);
-                                                    let format = egui::text::TextFormat {
-                                                        font_id: FontId::monospace(13.0),
-                                                        color: fg,
-                                                        background: bg,
-                                                        italics: current_style.text.italics(),
-                                                        ..Default::default()
-                                                    };
-                                                    job.append(&current_text, 0.0, format);
-                                                }
-                                            }
-                                            ui.label(job);
+                                            ui.label(layout_terminal_line(line));
                                         }
-                                    });
+                                    }
                                 });
 
-                                // ── Input bar ────────────────────────────────
+                                // ── Terminal status bar ─────────────────────
                                 ui.add(egui::Separator::default().horizontal().spacing(0.0));
 
                                 egui::Frame::none()
                                     .fill(BG_INPUT)
-                                    .inner_margin(egui::Margin::symmetric(6.0, 6.0))
+                                    .inner_margin(egui::Margin::symmetric(8.0, 6.0))
                                     .show(ui, |ui| {
-                                        ui.horizontal(|ui| {
-                                            let is_running = matches!(status, PanelStatus::Running { .. });
+                                        let is_running = matches!(status, PanelStatus::Running { .. });
+                                        let status_text = if is_running {
+                                            "Direct terminal mode: type directly into the focused panel"
+                                        } else {
+                                            "Panel is not running"
+                                        };
 
-                                            // Prompt icon
+                                        ui.horizontal_wrapped(|ui| {
                                             ui.label(
                                                 RichText::new(">")
                                                     .color(if is_running { ACCENT_GREEN } else { TEXT_DIM })
-                                                    .size(16.0)
+                                                    .size(15.0)
                                             );
-
-                                            // Text input
-                                            let mut input_text = input_buf.clone();
-                                            let edit_id = egui::Id::new(("input", panel_id));
-                                            let text_edit = egui::TextEdit::singleline(&mut input_text)
-                                                .id(edit_id)
-                                                .desired_width(ui.available_width() - 72.0)
-                                                .font(FontId::monospace(13.0))
-                                                .text_color(TEXT_PRIMARY)
-                                                .frame(false)
-                                                .hint_text(if is_running { "Send to agent…" } else { "(inactive)" });
-
-                                            let te_resp = ui.add(text_edit);
-
-                                            // Sync text back into panel buffer
-                                            if te_resp.changed() {
-                                                if let Some(panel) = self.panel_mgr.panels().iter().find(|p| p.id == panel_id) {
-                                                    // update through mutable access
-                                                }
-                                                if let Some(p) = self.panel_mgr.focused_panel_mut().filter(|p| p.id == panel_id) {
-                                                    p.input_buf = input_text.clone();
-                                                } else {
-                                                    // Direct mutation outside focused
-                                                    // We'll handle this by focusing first
-                                                    self.panel_mgr.set_focus(panel_id);
-                                                    if let Some(p) = self.panel_mgr.focused_panel_mut() {
-                                                        p.input_buf = input_text.clone();
-                                                    }
-                                                }
-                                            }
-
-                                            // Handle Enter key to submit
-                                            let enter_pressed = te_resp.lost_focus()
-                                                && ctx.input(|i| i.key_pressed(egui::Key::Enter));
-
-                                            // Send button
-                                            let send_clicked = ui.add(
-                                                egui::Button::new(
-                                                    RichText::new(" Send ").color(Color32::WHITE).size(12.0)
-                                                )
-                                                .fill(if is_running { ACCENT } else { Color32::from_rgb(50, 50, 70) })
-                                                .rounding(6.0)
-                                                .min_size(Vec2::new(65.0, 26.0))
-                                            ).on_hover_text("Send (Enter)")
-                                            .clicked();
-
-                                            if (send_clicked || enter_pressed) && is_running {
-                                                let text = if let Some(p) = self.panel_mgr.panels().iter().find(|p| p.id == panel_id) {
-                                                    p.input_buf.trim().to_string()
-                                                } else {
-                                                    String::new()
-                                                };
-                                                if !text.is_empty() {
-                                                    let _ = self.panel_mgr.send_input(panel_id, &text);
-                                                }
-                                                if let Some(p) = self.panel_mgr.focused_panel_mut().filter(|p| p.id == panel_id) {
-                                                    p.input_buf.clear();
-                                                } else {
-                                                    self.panel_mgr.set_focus(panel_id);
-                                                    if let Some(p) = self.panel_mgr.focused_panel_mut() {
-                                                        p.input_buf.clear();
-                                                    }
-                                                }
-                                            }
+                                            ui.label(
+                                                RichText::new(status_text)
+                                                    .color(TEXT_PRIMARY)
+                                                    .size(12.0)
+                                            );
+                                            ui.label(
+                                                RichText::new("Ctrl+C sends SIGINT. Ctrl+Shift+Q quits VibingIDE.")
+                                                    .color(TEXT_DIM)
+                                                    .size(11.0)
+                                            );
                                         });
                                     });
                             });
@@ -850,6 +794,7 @@ impl eframe::App for VibingApp {
         self.drain_pty_events();
         self.handle_zoom_shortcuts(ctx);
         self.apply_zoom(ctx);
+        self.handle_terminal_input(ctx);
 
         // 2. Render UI
         self.render_toolbar(ctx);
@@ -866,6 +811,190 @@ impl eframe::App for VibingApp {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+fn layout_terminal_line(line: &crate::pty::ansi::StyledLine) -> egui::text::LayoutJob {
+    let mut job = egui::text::LayoutJob::default();
+    job.wrap.break_anywhere = false;
+    job.wrap.max_width = f32::INFINITY;
+
+    if line.cells.is_empty() {
+        job.append(
+            " ",
+            0.0,
+            egui::text::TextFormat {
+                font_id: FontId::monospace(13.0),
+                color: TEXT_PRIMARY,
+                ..Default::default()
+            },
+        );
+        return job;
+    }
+
+    let mut current_text = String::new();
+    let mut current_style = line.cells[0].style;
+
+    for cell in &line.cells {
+        if cell.style != current_style {
+            push_terminal_run(&mut job, &current_text, current_style);
+            current_text.clear();
+            current_style = cell.style;
+        }
+        current_text.push(cell.ch);
+    }
+
+    if !current_text.is_empty() {
+        push_terminal_run(&mut job, &current_text, current_style);
+    }
+
+    job
+}
+
+fn push_terminal_run(job: &mut egui::text::LayoutJob, text: &str, style: crate::pty::ansi::CellStyle) {
+    let format = egui::text::TextFormat {
+        font_id: FontId::monospace(13.0),
+        color: style.fg.unwrap_or(TEXT_PRIMARY),
+        background: style.bg.unwrap_or(Color32::TRANSPARENT),
+        italics: style.text.italics(),
+        underline: if style.text.underline {
+            egui::Stroke::new(1.0, style.fg.unwrap_or(TEXT_PRIMARY))
+        } else {
+            egui::Stroke::NONE
+        },
+        strikethrough: if style.text.strikethrough {
+            egui::Stroke::new(1.0, style.fg.unwrap_or(TEXT_PRIMARY))
+        } else {
+            egui::Stroke::NONE
+        },
+        ..Default::default()
+    };
+    job.append(text, 0.0, format);
+}
+
+fn terminal_grid_size(ctx: &egui::Context, size: Vec2) -> (u16, u16) {
+    let font_id = FontId::monospace(13.0);
+    let (char_width, row_height) = ctx.fonts(|fonts| {
+        let width = fonts.glyph_width(&font_id, 'W').max(7.0);
+        let height = fonts.row_height(&font_id).max(14.0);
+        (width, height)
+    });
+
+    let cols = (size.x / char_width).floor().max(8.0) as u16;
+    let rows = (size.y / row_height).floor().max(2.0) as u16;
+    (cols, rows)
+}
+
+fn terminal_bytes_for_event(event: &Event, application_cursor: bool) -> Option<Vec<u8>> {
+    match event {
+        Event::Text(text) if !text.is_empty() => Some(text.as_bytes().to_vec()),
+        Event::Paste(text) if !text.is_empty() => Some(text.as_bytes().to_vec()),
+        Event::Key {
+            key,
+            pressed: true,
+            modifiers,
+            ..
+        } => {
+            if is_reserved_app_shortcut(*key, *modifiers) {
+                return None;
+            }
+
+            if modifiers.ctrl {
+                if let Some(byte) = ctrl_byte_for_key(*key) {
+                    return Some(vec![byte]);
+                }
+            }
+
+            key_to_terminal_bytes(*key, *modifiers, application_cursor)
+        }
+        _ => None,
+    }
+}
+
+fn is_reserved_app_shortcut(key: Key, modifiers: Modifiers) -> bool {
+    if modifiers.command && matches!(key, Key::Plus | Key::Equals | Key::Minus | Key::Num0) {
+        return true;
+    }
+
+    if modifiers.ctrl && matches!(key, Key::N | Key::W | Key::OpenBracket | Key::CloseBracket) {
+        return true;
+    }
+
+    modifiers.ctrl && modifiers.shift && key == Key::Q
+}
+
+fn ctrl_byte_for_key(key: Key) -> Option<u8> {
+    use Key::*;
+    let letter = match key {
+        A => b'a',
+        B => b'b',
+        C => b'c',
+        D => b'd',
+        E => b'e',
+        F => b'f',
+        G => b'g',
+        H => b'h',
+        I => b'i',
+        J => b'j',
+        K => b'k',
+        L => b'l',
+        M => b'm',
+        N => b'n',
+        O => b'o',
+        P => b'p',
+        Q => b'q',
+        R => b'r',
+        S => b's',
+        T => b't',
+        U => b'u',
+        V => b'v',
+        W => b'w',
+        X => b'x',
+        Y => b'y',
+        Z => b'z',
+        _ => return None,
+    };
+
+    Some(letter - b'a' + 1)
+}
+
+fn key_to_terminal_bytes(key: Key, modifiers: Modifiers, application_cursor: bool) -> Option<Vec<u8>> {
+    if modifiers.ctrl {
+        return None;
+    }
+
+    let bytes = match key {
+        Key::Enter => b"\r".to_vec(),
+        Key::Tab => {
+            if modifiers.shift {
+                b"\x1b[Z".to_vec()
+            } else {
+                b"\t".to_vec()
+            }
+        }
+        Key::Backspace => vec![0x7f],
+        Key::Escape => vec![0x1b],
+        Key::ArrowUp => cursor_key_bytes(application_cursor, b'A'),
+        Key::ArrowDown => cursor_key_bytes(application_cursor, b'B'),
+        Key::ArrowRight => cursor_key_bytes(application_cursor, b'C'),
+        Key::ArrowLeft => cursor_key_bytes(application_cursor, b'D'),
+        Key::Home => b"\x1b[H".to_vec(),
+        Key::End => b"\x1b[F".to_vec(),
+        Key::Insert => b"\x1b[2~".to_vec(),
+        Key::Delete => b"\x1b[3~".to_vec(),
+        Key::PageUp => b"\x1b[5~".to_vec(),
+        Key::PageDown => b"\x1b[6~".to_vec(),
+        _ => return None,
+    };
+
+    Some(bytes)
+}
+
+fn cursor_key_bytes(application_cursor: bool, final_byte: u8) -> Vec<u8> {
+    if application_cursor {
+        vec![0x1b, b'O', final_byte]
+    } else {
+        vec![0x1b, b'[', final_byte]
+    }
+}
 
 fn tab_button(label: &str, active: bool) -> impl egui::Widget + '_ {
     move |ui: &mut Ui| {

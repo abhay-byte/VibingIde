@@ -149,8 +149,15 @@ impl Supervisor {
 
     /// Write a line of text to the agent's stdin.
     pub fn send_input(&mut self, text: &str) -> Result<()> {
+        let mut bytes = text.as_bytes().to_vec();
+        bytes.extend_from_slice(b"\r\n");
+        self.send_bytes(&bytes)
+    }
+
+    /// Write raw bytes to the PTY stdin.
+    pub fn send_bytes(&mut self, bytes: &[u8]) -> Result<()> {
         use std::io::Write;
-        write!(self.writer, "{}\r\n", text).context("writing to PTY stdin")?;
+        self.writer.write_all(bytes).context("writing to PTY stdin")?;
         self.writer.flush().context("flushing PTY stdin")
     }
 

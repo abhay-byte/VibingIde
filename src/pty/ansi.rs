@@ -1,19 +1,15 @@
-//! ANSI/VT100 parser wrapper using the `vte` crate.
-//! Converts raw bytes from the PTY into a sequence of styled terminal cells.
-//! Uses egui color types directly.
+//! Terminal screen state wrapper using the `vt100` crate.
+//! Converts a PTY byte stream into a renderable fixed-size cell grid.
 
 use egui::Color32;
-use vte::{Params, Parser, Perform};
-
-// ── Style types (egui-native, no ratatui) ────────────────────────────────────
 
 /// Text modifiers (bold, italic, etc.)
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct TextStyle {
-    pub bold:      bool,
-    pub italic:    bool,
-    pub underline: bool,
-    pub dim:       bool,
+    pub bold:          bool,
+    pub italic:        bool,
+    pub underline:     bool,
+    pub dim:           bool,
     pub strikethrough: bool,
 }
 
@@ -39,137 +35,194 @@ pub struct StyledLine {
 }
 
 impl StyledLine {
-    /// Extract plain text (ANSI stripped) for history storage.
     pub fn plain_text(&self) -> String {
         self.cells.iter().map(|c| c.ch).collect()
     }
 }
 
-/// ANSI state machine: feeds bytes and produces finished `StyledLine`s.
 pub struct AnsiParser {
-    parser:    Parser,
-    performer: Performer,
+    parser:             vt100::Parser,
+    rows:               u16,
+    cols:               u16,
+    rendered_lines:     Vec<StyledLine>,
+    cursor_position:    Option<(u16, u16)>,
+    application_cursor: bool,
 }
 
 impl AnsiParser {
-    pub fn new() -> Self {
-        Self {
-            parser:    Parser::new(),
-            performer: Performer::new(),
+    pub fn new(rows: u16, cols: u16, scrollback_len: usize) -> Self {
+        let rows = rows.max(2);
+        let cols = cols.max(8);
+        let parser = vt100::Parser::new(rows, cols, scrollback_len);
+        let mut this = Self {
+            parser,
+            rows,
+            cols,
+            rendered_lines: Vec::new(),
+            cursor_position: None,
+            application_cursor: false,
+        };
+        this.refresh_screen_cache();
+        this
+    }
+
+    pub fn feed(&mut self, bytes: &[u8]) {
+        self.parser.process(bytes);
+        self.refresh_screen_cache();
+    }
+
+    pub fn resize(&mut self, rows: u16, cols: u16) {
+        let rows = rows.max(2);
+        let cols = cols.max(8);
+        if rows == self.rows && cols == self.cols {
+            return;
         }
+
+        self.rows = rows;
+        self.cols = cols;
+        self.parser.set_size(rows, cols);
+        self.refresh_screen_cache();
     }
 
-    /// Feed raw bytes into the parser.
-    /// Returns any complete lines (terminated by `\n`) produced.
-    pub fn feed(&mut self, bytes: &[u8]) -> Vec<StyledLine> {
-        for &byte in bytes {
-            self.parser.advance(&mut self.performer, byte);
-        }
-        std::mem::take(&mut self.performer.finished_lines)
-    }
-}
-
-// ── Internal performer ───────────────────────────────────────────────────────
-
-struct Performer {
-    current_line:   StyledLine,
-    current_style:  CellStyle,
-    finished_lines: Vec<StyledLine>,
-}
-
-impl Performer {
-    fn new() -> Self {
-        Self {
-            current_line:   StyledLine::default(),
-            current_style:  CellStyle::default(),
-            finished_lines: Vec::new(),
-        }
+    pub fn lines(&self) -> &[StyledLine] {
+        &self.rendered_lines
     }
 
-    fn commit_line(&mut self) {
-        let line = std::mem::take(&mut self.current_line);
-        self.finished_lines.push(line);
-    }
-}
-
-impl Perform for Performer {
-    fn print(&mut self, c: char) {
-        self.current_line.cells.push(StyledCell { ch: c, style: self.current_style });
+    pub fn cursor_position(&self) -> Option<(u16, u16)> {
+        self.cursor_position
     }
 
-    fn execute(&mut self, byte: u8) {
-        match byte {
-            b'\n' => self.commit_line(),
-            b'\r' => {}
-            b'\t' => {
-                for _ in 0..4 {
-                    self.current_line.cells.push(StyledCell { ch: ' ', style: self.current_style });
+    pub fn application_cursor(&self) -> bool {
+        self.application_cursor
+    }
+
+    pub fn size(&self) -> (u16, u16) {
+        (self.cols, self.rows)
+    }
+
+    fn refresh_screen_cache(&mut self) {
+        let screen = self.parser.screen();
+        let (cursor_row, cursor_col) = screen.cursor_position();
+        self.cursor_position = if screen.hide_cursor() {
+            None
+        } else {
+            Some((cursor_row, cursor_col))
+        };
+        self.application_cursor = screen.application_cursor();
+
+        let mut lines = Vec::with_capacity(self.rows as usize);
+        for row in 0..self.rows {
+            let mut cells = Vec::with_capacity(self.cols as usize);
+            for col in 0..self.cols {
+                let cell = screen.cell(row, col);
+                let mut style = cell
+                    .map(cell_style)
+                    .unwrap_or_default();
+                let mut ch = cell_char(cell);
+
+                if Some((row, col)) == self.cursor_position {
+                    apply_cursor_style(&mut style, &mut ch);
                 }
+
+                cells.push(StyledCell { ch, style });
             }
-            _ => {}
+            lines.push(StyledLine { cells });
         }
+        self.rendered_lines = lines;
     }
-
-    fn csi_dispatch(&mut self, params: &Params, _intermediates: &[u8], _ignore: bool, action: char) {
-        if action == 'm' {
-            apply_sgr(&mut self.current_style, params);
-        }
-    }
-
-    fn hook(&mut self, _: &Params, _: &[u8], _: bool, _: char) {}
-    fn put(&mut self, _: u8) {}
-    fn unhook(&mut self) {}
-    fn osc_dispatch(&mut self, _: &[&[u8]], _: bool) {}
-    fn esc_dispatch(&mut self, _: &[u8], _: bool, _: u8) {}
 }
 
-// ── SGR attribute parser ─────────────────────────────────────────────────────
+fn cell_char(cell: Option<&vt100::Cell>) -> char {
+    let Some(cell) = cell else {
+        return ' ';
+    };
 
-fn apply_sgr(style: &mut CellStyle, params: &Params) {
-    let mut iter = params.iter();
-    while let Some(param) = iter.next() {
-        let code = param[0];
-        match code {
-            0  => *style = CellStyle::default(),
-            1  => style.text.bold      = true,
-            2  => style.text.dim       = true,
-            3  => style.text.italic    = true,
-            4  => style.text.underline = true,
-            9  => style.text.strikethrough = true,
-            22 => { style.text.bold = false; style.text.dim = false; }
-            23 => style.text.italic    = false,
-            24 => style.text.underline = false,
-            // Foreground (30–37)
-            30 => style.fg = Some(Color32::from_rgb(30, 30, 30)),
-            31 => style.fg = Some(Color32::from_rgb(205, 49,  49)),
-            32 => style.fg = Some(Color32::from_rgb(13,  188, 121)),
-            33 => style.fg = Some(Color32::from_rgb(229, 229, 16)),
-            34 => style.fg = Some(Color32::from_rgb(36,  114, 200)),
-            35 => style.fg = Some(Color32::from_rgb(188, 63,  188)),
-            36 => style.fg = Some(Color32::from_rgb(17,  168, 205)),
-            37 => style.fg = Some(Color32::from_rgb(229, 229, 229)),
-            39 => style.fg = None,
-            // Background (40–47)
-            40 => style.bg = Some(Color32::from_rgb(0,   0,   0)),
-            41 => style.bg = Some(Color32::from_rgb(205, 49,  49)),
-            42 => style.bg = Some(Color32::from_rgb(13,  188, 121)),
-            43 => style.bg = Some(Color32::from_rgb(229, 229, 16)),
-            44 => style.bg = Some(Color32::from_rgb(36,  114, 200)),
-            45 => style.bg = Some(Color32::from_rgb(188, 63,  188)),
-            46 => style.bg = Some(Color32::from_rgb(17,  168, 205)),
-            47 => style.bg = Some(Color32::from_rgb(229, 229, 229)),
-            49 => style.bg = None,
-            // Bright foreground (90–97)
-            90 => style.fg = Some(Color32::from_rgb(102, 102, 102)),
-            91 => style.fg = Some(Color32::from_rgb(241, 76,  76)),
-            92 => style.fg = Some(Color32::from_rgb(35,  209, 139)),
-            93 => style.fg = Some(Color32::from_rgb(245, 245, 67)),
-            94 => style.fg = Some(Color32::from_rgb(59,  142, 234)),
-            95 => style.fg = Some(Color32::from_rgb(214, 112, 214)),
-            96 => style.fg = Some(Color32::from_rgb(41,  184, 219)),
-            97 => style.fg = Some(Color32::WHITE),
-            // 256-color / truecolor — skip for now
-            _ => {}
+    let contents = cell.contents();
+    if contents.is_empty() {
+        ' '
+    } else {
+        contents.chars().next().unwrap_or(' ')
+    }
+}
+
+fn cell_style(cell: &vt100::Cell) -> CellStyle {
+    let mut style = CellStyle {
+        fg: color_to_egui(cell.fgcolor()),
+        bg: color_to_egui(cell.bgcolor()),
+        text: TextStyle {
+            bold: cell.bold(),
+            italic: cell.italic(),
+            underline: cell.underline(),
+            dim: false,
+            strikethrough: false,
+        },
+    };
+
+    if cell.inverse() {
+        std::mem::swap(&mut style.fg, &mut style.bg);
+    }
+
+    style
+}
+
+fn apply_cursor_style(style: &mut CellStyle, ch: &mut char) {
+    if *ch == ' ' {
+        *ch = ' ';
+    }
+
+    let fg = style.fg.unwrap_or(Color32::BLACK);
+    let bg = style.bg.unwrap_or(Color32::WHITE);
+    style.fg = Some(bg);
+    style.bg = Some(fg);
+}
+
+fn color_to_egui(color: vt100::Color) -> Option<Color32> {
+    match color {
+        vt100::Color::Default => None,
+        vt100::Color::Idx(idx) => Some(color_index_to_rgb(idx)),
+        vt100::Color::Rgb(r, g, b) => Some(Color32::from_rgb(r, g, b)),
+    }
+}
+
+fn color_index_to_rgb(idx: u8) -> Color32 {
+    match idx {
+        0 => Color32::from_rgb(0, 0, 0),
+        1 => Color32::from_rgb(205, 49, 49),
+        2 => Color32::from_rgb(13, 188, 121),
+        3 => Color32::from_rgb(229, 229, 16),
+        4 => Color32::from_rgb(36, 114, 200),
+        5 => Color32::from_rgb(188, 63, 188),
+        6 => Color32::from_rgb(17, 168, 205),
+        7 => Color32::from_rgb(229, 229, 229),
+        8 => Color32::from_rgb(102, 102, 102),
+        9 => Color32::from_rgb(241, 76, 76),
+        10 => Color32::from_rgb(35, 209, 139),
+        11 => Color32::from_rgb(245, 245, 67),
+        12 => Color32::from_rgb(59, 142, 234),
+        13 => Color32::from_rgb(214, 112, 214),
+        14 => Color32::from_rgb(41, 184, 219),
+        15 => Color32::from_rgb(255, 255, 255),
+        16..=231 => {
+            let idx = idx - 16;
+            let r = idx / 36;
+            let g = (idx % 36) / 6;
+            let b = idx % 6;
+            Color32::from_rgb(cube_channel(r), cube_channel(g), cube_channel(b))
         }
+        232..=255 => {
+            let gray = 8u8.saturating_add((idx - 232) * 10);
+            Color32::from_rgb(gray, gray, gray)
+        }
+    }
+}
+
+fn cube_channel(value: u8) -> u8 {
+    match value {
+        0 => 0,
+        1 => 95,
+        2 => 135,
+        3 => 175,
+        4 => 215,
+        _ => 255,
     }
 }

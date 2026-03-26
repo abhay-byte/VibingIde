@@ -28,8 +28,8 @@ futures      = { version = "0.3", default-features = false, features = ["std"] }
 # PTY
 portable-pty = "0.8"
 
-# ANSI parsing
-vte = "0.13"
+# Terminal emulation
+vt100 = "0.15"
 
 # Serialization
 serde      = { version = "1", features = ["derive"] }
