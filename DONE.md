@@ -1,5 +1,6 @@
 # DONE
 
+- 2026-03-26: Optimized the egui app for portrait screens by switching narrow/tall windows to a compact mobile-style layout with a collapsible workspace drawer, horizontal panel switcher, and single focused full-width terminal view, and persisted the manual zoom level across launches via `eframe` storage while lowering the native minimum window size so portrait mode is usable. Commit: `00545b2`
 - 2026-03-26: Added automated terminal regression coverage for Linux PTY interaction by testing key-to-byte translation, alternate-screen/application-cursor terminal emulation, raw PTY byte round-trips, and `Ctrl+C` interrupt delivery, and moved the completed TODO item out of the queue. Commit: `7b8a34d`
 - 2026-03-26: Reworked agent panels to behave like direct terminals for full-screen TUIs such as `codex` by switching to per-panel `vt100` screen emulation, forwarding raw keyboard input to the focused PTY, updating the panel chrome/help text for direct terminal mode, and refreshing the Linux launchers after rebuilding release. Commit: `462b782`
 - 2026-03-26: Switched the managed Linux launcher from `RUST_BACKTRACE=1` to `RUST_BACKTRACE=full` by default so zsh launches, desktop entries, and the XFCE menu emit verbose Rust backtraces unless explicitly overridden. Commit: `4b07234`
