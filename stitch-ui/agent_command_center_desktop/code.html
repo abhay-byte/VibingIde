@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>VibingIDE | Agent Command Center</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-primary-container": "#007142",
+                        "on-secondary-fixed": "#001f28",
+                        "inverse-on-surface": "#313030",
+                        "on-secondary-container": "#00566b",
+                        "secondary-container": "#14d1ff",
+                        "on-background": "#e5e2e1",
+                        "on-tertiary-fixed-variant": "#673d00",
+                        "surface-tint": "#00e38a",
+                        "surface-container": "#201f1f",
+                        "outline": "#849587",
+                        "on-surface": "#e5e2e1",
+                        "on-tertiary": "#482900",
+                        "tertiary-fixed-dim": "#ffb869",
+                        "surface-bright": "#393939",
+                        "secondary-fixed-dim": "#4cd6ff",
+                        "tertiary": "#fffbff",
+                        "error-container": "#93000a",
+                        "tertiary-fixed": "#ffdcbb",
+                        "surface-container-highest": "#353534",
+                        "on-secondary-fixed-variant": "#004e60",
+                        "surface-container-low": "#1c1b1b",
+                        "surface-container-lowest": "#0e0e0e",
+                        "on-primary-fixed": "#002110",
+                        "on-primary-fixed-variant": "#00522f",
+                        "inverse-primary": "#006d40",
+                        "on-surface-variant": "#b9cbbc",
+                        "tertiary-container": "#ffd9b4",
+                        "primary-fixed": "#56ffa7",
+                        "primary": "#f3fff3",
+                        "on-secondary": "#003543",
+                        "error": "#ffb4ab",
+                        "primary-container": "#00ff9c",
+                        "surface-container-high": "#2a2a2a",
+                        "surface": "#131313",
+                        "on-error-container": "#ffdad6",
+                        "on-tertiary-container": "#8e5500",
+                        "surface-variant": "#353534",
+                        "surface-dim": "#131313",
+                        "background": "#131313",
+                        "on-tertiary-fixed": "#2c1700",
+                        "secondary-fixed": "#b7eaff",
+                        "outline-variant": "#3b4b3f",
+                        "inverse-surface": "#e5e2e1",
+                        "primary-fixed-dim": "#00e38a",
+                        "on-error": "#690005",
+                        "on-primary": "#00391f",
+                        "secondary": "#a6e6ff"
+                    },
+                    fontFamily: {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Inter"],
+                        "label": ["Inter"],
+                        "mono": ["JetBrains Mono"]
+                    },
+                    borderRadius: { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #0e0e0e;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #3b4b3f;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #00FF9C;
+        }
+        .syntax-string { color: #ffdcbb; }
+        .syntax-keyword { color: #56ffa7; }
+        .syntax-comment { color: #3b4b3f; }
+        .syntax-func { color: #b7eaff; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body overflow-hidden h-screen flex flex-col">
+<!-- TopAppBar -->
+<header class="bg-[#131313] text-[#00FF9C] font-['Space_Grotesk'] tracking-tight flex justify-between items-center w-full px-6 py-2 z-50 fixed top-0 border-b-0 space-y-2 bg-[#1c1b1b] flat no shadows">
+<div class="flex items-center gap-6">
+<span class="text-xl font-bold text-[#00FF9C] uppercase tracking-widest">VibingIDE</span>
+<nav class="hidden md:flex gap-6 text-sm font-medium">
+<a class="text-[#00FF9C] border-b-2 border-[#00FF9C] hover:text-[#56ffa7] transition-colors pb-1" href="#">Command Center</a>
+<a class="text-[#e5e2e1] opacity-70 hover:text-[#56ffa7] transition-colors pb-1" href="#">Editor</a>
+<a class="text-[#e5e2e1] opacity-70 hover:text-[#56ffa7] transition-colors pb-1" href="#">Infrastructure</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden lg:block">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-xs opacity-50">search</span>
+<input class="bg-surface-container-highest border-none text-xs font-mono py-1.5 pl-9 pr-4 w-64 focus:ring-1 focus:ring-primary-container" placeholder="Search commands..." type="text"/>
+</div>
+<button class="material-symbols-outlined text-[#e5e2e1] opacity-70 hover:bg-[#393939] p-1.5 rounded transition-colors">terminal</button>
+<button class="material-symbols-outlined text-[#e5e2e1] opacity-70 hover:bg-[#393939] p-1.5 rounded transition-colors">settings</button>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-16 flex flex-col items-center py-4 z-40 md:flex hidden bg-[#1c1b1b]/60 backdrop-blur-xl border-r-0 tonal-shift bg-[#0e0e0e] shadow-[40px_0_40px_rgba(0,227,138,0.04)] pt-16">
+<div class="flex flex-col items-center gap-8 w-full">
+<div class="flex flex-col items-center gap-1">
+<span class="font-['Space_Grotesk'] font-black text-[#00FF9C] text-xs">VIBE</span>
+<span class="text-[8px] opacity-40 uppercase tracking-tighter">v1.0.4</span>
+</div>
+<nav class="flex flex-col w-full gap-2">
+<button class="text-[#3b4b3f] hover:text-[#56ffa7] hover:bg-[#353534]/40 py-3 w-full transition-all duration-300 ease-out group relative">
+<span class="material-symbols-outlined">folder_open</span>
+<span class="absolute left-full ml-2 px-2 py-1 bg-surface-container text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">Explorer</span>
+</button>
+<button class="text-[#00FF9C] border-l-2 border-[#00FF9C] bg-[#131313] py-3 w-full transition-all duration-300 ease-out group relative">
+<span class="material-symbols-outlined">smart_toy</span>
+<span class="absolute left-full ml-2 px-2 py-1 bg-surface-container text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">Agents</span>
+</button>
+<button class="text-[#3b4b3f] hover:text-[#56ffa7] hover:bg-[#353534]/40 py-3 w-full transition-all duration-300 ease-out group relative">
+<span class="material-symbols-outlined">search</span>
+<span class="absolute left-full ml-2 px-2 py-1 bg-surface-container text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">Search</span>
+</button>
+<button class="text-[#3b4b3f] hover:text-[#56ffa7] hover:bg-[#353534]/40 py-3 w-full transition-all duration-300 ease-out group relative">
+<span class="material-symbols-outlined">history_toggle_off</span>
+<span class="absolute left-full ml-2 px-2 py-1 bg-surface-container text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">Git</span>
+</button>
+</nav>
+</div>
+<div class="mt-auto w-full flex flex-col items-center gap-4">
+<button class="text-[#3b4b3f] hover:text-[#56ffa7] hover:bg-[#353534]/40 py-3 w-full transition-all duration-300 ease-out group relative">
+<span class="material-symbols-outlined">settings</span>
+<span class="absolute left-full ml-2 px-2 py-1 bg-surface-container text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">Settings</span>
+</button>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 ml-0 md:ml-16 mt-12 mb-6 p-4 grid grid-cols-12 gap-4 overflow-hidden">
+<!-- Left Column: Active Agents -->
+<section class="col-span-12 lg:col-span-3 flex flex-col gap-4 overflow-hidden">
+<div class="bg-surface-container-low border-l-2 border-primary-container p-4 flex flex-col h-full overflow-hidden">
+<div class="flex justify-between items-center mb-4">
+<h2 class="font-headline text-sm font-bold tracking-widest uppercase text-primary-fixed">Active Agents</h2>
+<span class="bg-primary-container/10 text-primary-fixed text-[10px] px-2 py-0.5 border border-primary-container/20">3 RUNNING</span>
+</div>
+<div class="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2">
+<!-- Agent Card 1 -->
+<div class="bg-surface-container-highest/30 p-3 border-b border-outline-variant/10 group hover:bg-surface-container-highest/50 transition-colors">
+<div class="flex items-center justify-between mb-2">
+<span class="font-mono text-xs font-bold text-secondary-fixed">GPT-4o_Debugger</span>
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-primary-fixed shadow-[0_0_8px_#56ffa7]"></span>
+<span class="text-[9px] font-mono text-primary-fixed uppercase">Running</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-2 mb-3">
+<div class="text-[10px] font-mono opacity-50">CPU: 12.4%</div>
+<div class="text-[10px] font-mono opacity-50">MEM: 1.2GB</div>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 text-[9px] font-bold uppercase bg-error-container/20 text-error hover:bg-error-container/40 py-1 transition-colors">Stop</button>
+<button class="flex-1 text-[9px] font-bold uppercase bg-primary-container/10 text-primary-fixed hover:bg-primary-container/20 py-1 transition-colors">Restart</button>
+</div>
+</div>
+<!-- Agent Card 2 -->
+<div class="bg-surface-container-highest/30 p-3 border-b border-outline-variant/10 group">
+<div class="flex items-center justify-between mb-2">
+<span class="font-mono text-xs font-bold text-on-surface/80">Claude-3_Refactor</span>
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-tertiary-fixed-dim"></span>
+<span class="text-[9px] font-mono text-tertiary-fixed-dim uppercase">Idle</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-2 mb-3">
+<div class="text-[10px] font-mono opacity-50">CPU: 0.1%</div>
+<div class="text-[10px] font-mono opacity-50">MEM: 450MB</div>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 text-[9px] font-bold uppercase bg-surface-container-low text-on-surface/40 py-1 cursor-not-allowed">Stop</button>
+<button class="flex-1 text-[9px] font-bold uppercase bg-primary-container/10 text-primary-fixed hover:bg-primary-container/20 py-1 transition-colors">Wake</button>
+</div>
+</div>
+<!-- Agent Card 3 -->
+<div class="bg-surface-container-highest/30 p-3 border-b border-outline-variant/10 group">
+<div class="flex items-center justify-between mb-2">
+<span class="font-mono text-xs font-bold text-secondary-fixed">Llama-3_Tester</span>
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-secondary-fixed animate-pulse"></span>
+<span class="text-[9px] font-mono text-secondary-fixed uppercase">Reviewing</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-2 mb-3">
+<div class="text-[10px] font-mono opacity-50">CPU: 45.8%</div>
+<div class="text-[10px] font-mono opacity-50">MEM: 2.8GB</div>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 text-[9px] font-bold uppercase bg-error-container/20 text-error hover:bg-error-container/40 py-1 transition-colors">Stop</button>
+<button class="flex-1 text-[9px] font-bold uppercase bg-primary-container/10 text-primary-fixed hover:bg-primary-container/20 py-1 transition-colors">Push</button>
+</div>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-outline-variant/10">
+<button class="w-full bg-primary-container text-on-primary-container font-bold text-xs py-2 uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-primary-fixed-dim transition-all active:scale-95">
+<span class="material-symbols-outlined text-sm">add</span>
+                        Spawn New Agent
+                    </button>
+</div>
+</div>
+</section>
+<!-- Middle Column: Terminal Log -->
+<section class="col-span-12 lg:col-span-6 flex flex-col overflow-hidden">
+<div class="flex-1 bg-surface-container-lowest border-t-2 border-primary-fixed-dim flex flex-col overflow-hidden">
+<!-- Terminal Tabs -->
+<div class="flex bg-surface-container-high overflow-x-auto custom-scrollbar">
+<button class="px-4 py-2 bg-surface-container-lowest text-primary-fixed border-r border-outline-variant/10 flex items-center gap-2 min-w-[160px]">
+<span class="material-symbols-outlined text-sm">terminal</span>
+<span class="font-mono text-[10px] truncate">GPT-4o_Debugger.log</span>
+<span class="material-symbols-outlined text-[10px] ml-auto opacity-40 hover:opacity-100">close</span>
+</button>
+<button class="px-4 py-2 text-on-surface/40 hover:bg-surface-container border-r border-outline-variant/10 flex items-center gap-2 min-w-[160px]">
+<span class="material-symbols-outlined text-sm">terminal</span>
+<span class="font-mono text-[10px] truncate">Llama-3_Tester.log</span>
+<span class="material-symbols-outlined text-[10px] ml-auto opacity-0 group-hover:opacity-100">close</span>
+</button>
+<button class="px-4 py-2 text-on-surface/40 hover:bg-surface-container flex items-center justify-center w-10">
+<span class="material-symbols-outlined text-sm">add</span>
+</button>
+</div>
+<!-- ANSI Output Area -->
+<div class="flex-1 p-4 font-mono text-[11px] leading-relaxed overflow-y-auto custom-scrollbar selection:bg-primary-container/30">
+<div class="space-y-1">
+<p class="syntax-comment"># Initializing agent sequence 0x7FF-40...</p>
+<p><span class="syntax-keyword">[INFO]</span> Connected to runtime cluster <span class="syntax-string">'main-eu-west'</span></p>
+<p><span class="syntax-keyword">[INFO]</span> Loading knowledge base: <span class="syntax-string">'React-Next.js-v14-Optimized'</span></p>
+<p><span class="syntax-keyword">[INFO]</span> Found 14 linting errors in <span class="syntax-func">/src/lib/auth.ts</span></p>
+<p class="syntax-func">&gt;&gt;&gt; Running patch analysis...</p>
+<div class="pl-4 border-l border-outline-variant/20 py-2 my-2 space-y-1">
+<p class="text-error">[WARN] Potential race condition at line 142</p>
+<p class="text-primary-fixed">[EXEC] Applying mutex-lock wrapper to <span class="italic">get_session()</span></p>
+<p class="text-secondary-fixed">[DIFF] src/lib/auth.ts: +14, -2</p>
+</div>
+<p><span class="syntax-keyword">[SYSTEM]</span> Memory pressure within limits (34%)</p>
+<p><span class="syntax-keyword">[INFO]</span> Agent is observing <span class="syntax-string">/src/components/*</span> for structural changes</p>
+<p class="animate-pulse inline-block bg-primary-fixed w-1.5 h-3 ml-1 translate-y-0.5"></p>
+</div>
+</div>
+<!-- Terminal Footer -->
+<div class="p-2 bg-surface-container flex items-center gap-3">
+<span class="text-[10px] font-mono opacity-50 px-2 uppercase">Input &gt;</span>
+<input class="flex-1 bg-transparent border-none text-[11px] font-mono text-primary-fixed p-0 focus:ring-0 placeholder:opacity-20" placeholder="Send manual override command..." type="text"/>
+<div class="flex gap-1">
+<button class="material-symbols-outlined text-sm p-1 hover:bg-surface-bright rounded text-tertiary-fixed">bolt</button>
+<button class="material-symbols-outlined text-sm p-1 hover:bg-surface-bright rounded">content_copy</button>
+<button class="material-symbols-outlined text-sm p-1 hover:bg-surface-bright rounded">delete</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Right Column: Metrics & Observers -->
+<section class="col-span-12 lg:col-span-3 flex flex-col gap-4 overflow-hidden">
+<!-- System Metrics -->
+<div class="bg-surface-container-low p-4 flex flex-col gap-4 h-1/2 overflow-hidden">
+<h3 class="font-headline text-[10px] font-bold tracking-[0.2em] uppercase opacity-60 flex items-center gap-2">
+<span class="w-1.5 h-1.5 bg-secondary-fixed rounded-full"></span>
+                    System Telemetry
+                </h3>
+<div class="space-y-4">
+<!-- CPU Graph Mock -->
+<div class="space-y-1">
+<div class="flex justify-between text-[10px] font-mono">
+<span>CPU LOAD</span>
+<span class="text-primary-fixed">58%</span>
+</div>
+<div class="h-10 bg-surface-container-highest/20 relative overflow-hidden">
+<svg class="absolute bottom-0 left-0 w-full h-full" preserveaspectratio="none" viewbox="0 0 100 40">
+<path d="M0 40 L0 30 L10 32 L20 25 L30 35 L40 20 L50 28 L60 15 L70 25 L80 18 L90 22 L100 15 L100 40 Z" fill="rgba(0, 255, 156, 0.1)" stroke="#00FF9C" stroke-width="1"></path>
+</svg>
+</div>
+</div>
+<!-- Mem Graph Mock -->
+<div class="space-y-1">
+<div class="flex justify-between text-[10px] font-mono">
+<span>MEM UTIL</span>
+<span class="text-secondary-fixed">4.2GB</span>
+</div>
+<div class="h-10 bg-surface-container-highest/20 relative overflow-hidden">
+<svg class="absolute bottom-0 left-0 w-full h-full" preserveaspectratio="none" viewbox="0 0 100 40">
+<path d="M0 40 L0 38 L10 37 L20 36 L30 37 L40 35 L50 36 L60 34 L70 33 L80 34 L90 32 L100 30 L100 40 Z" fill="rgba(183, 234, 255, 0.1)" stroke="#b7eaff" stroke-width="1"></path>
+</svg>
+</div>
+</div>
+<!-- Network IO -->
+<div class="flex justify-between gap-2">
+<div class="flex-1 bg-surface-container p-2 border-t border-outline-variant/10">
+<span class="block text-[8px] opacity-40 uppercase">Ingress</span>
+<span class="block text-xs font-mono font-bold">12.4 MB/s</span>
+</div>
+<div class="flex-1 bg-surface-container p-2 border-t border-outline-variant/10">
+<span class="block text-[8px] opacity-40 uppercase">Egress</span>
+<span class="block text-xs font-mono font-bold">2.8 MB/s</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Observers -->
+<div class="bg-surface-container-low flex-1 p-4 flex flex-col overflow-hidden">
+<div class="flex gap-4 mb-4 border-b border-outline-variant/10">
+<button class="pb-2 text-[10px] font-bold uppercase border-b border-primary-fixed text-primary-fixed">File Watcher</button>
+<button class="pb-2 text-[10px] font-bold uppercase opacity-40 hover:opacity-100 transition-opacity">Git Diff</button>
+</div>
+<div class="flex-1 overflow-y-auto custom-scrollbar space-y-2">
+<div class="flex items-center gap-3 group">
+<span class="material-symbols-outlined text-xs text-secondary-fixed">description</span>
+<div class="flex-1 overflow-hidden">
+<span class="block text-[10px] font-mono truncate">src/lib/auth.ts</span>
+<span class="block text-[8px] opacity-40">Modified 2m ago by GPT-4o</span>
+</div>
+<span class="text-[9px] text-primary-fixed font-mono">+12</span>
+</div>
+<div class="flex items-center gap-3 group">
+<span class="material-symbols-outlined text-xs text-secondary-fixed">description</span>
+<div class="flex-1 overflow-hidden">
+<span class="block text-[10px] font-mono truncate">src/types/index.d.ts</span>
+<span class="block text-[8px] opacity-40">Modified 5m ago by GPT-4o</span>
+</div>
+<span class="text-[9px] text-primary-fixed font-mono">+4</span>
+</div>
+<div class="flex items-center gap-3 group">
+<span class="material-symbols-outlined text-xs text-secondary-fixed">javascript</span>
+<div class="flex-1 overflow-hidden">
+<span class="block text-[10px] font-mono truncate">package-lock.json</span>
+<span class="block text-[8px] opacity-40">Modified 12m ago by System</span>
+</div>
+<span class="text-[9px] text-error font-mono">-240</span>
+</div>
+<!-- Git Preview Fragment -->
+<div class="mt-4 p-2 bg-surface-container-lowest font-mono text-[9px] opacity-80 border-l border-tertiary-fixed/30">
+<p class="text-tertiary-fixed mb-1">@@ -142,6 +142,12 @@</p>
+<p class="text-on-surface">+  const mutex = new Mutex();</p>
+<p class="text-on-surface">+  await mutex.acquire();</p>
+<p class="text-on-surface">   return await fetchSession();</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-2 pt-1 md:hidden bg-[#131313] border-t border-[#3b4b3f]/15 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+<button class="flex flex-col items-center justify-center text-[#e5e2e1]/50 hover:bg-[#393939] py-1 px-3">
+<span class="material-symbols-outlined">code</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-tighter">Editor</span>
+</button>
+<button class="flex flex-col items-center justify-center text-[#00FF9C] bg-[#1c1b1b] rounded-sm py-1 px-3">
+<span class="material-symbols-outlined">psychology</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-tighter">Agents</span>
+</button>
+<button class="flex flex-col items-center justify-center text-[#e5e2e1]/50 hover:bg-[#393939] py-1 px-3">
+<span class="material-symbols-outlined">grid_view</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-tighter">Files</span>
+</button>
+<button class="flex flex-col items-center justify-center text-[#e5e2e1]/50 hover:bg-[#393939] py-1 px-3">
+<span class="material-symbols-outlined">terminal</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-tighter">Logs</span>
+</button>
+</nav>
+<!-- Footer -->
+<footer class="fixed bottom-0 w-full flex justify-between items-center px-4 md:flex hidden z-30 bg-[#0e0e0e] border-t border-[#3b4b3f]/10 h-6 font-['JetBrains_Mono'] text-[11px] flat">
+<div class="flex items-center gap-4 text-[#e5e2e1]/40">
+<div class="flex items-center gap-1.5 hover:text-[#ffdcbb] cursor-pointer opacity-80 hover:opacity-100 transition-opacity">
+<span class="w-1.5 h-1.5 bg-[#00FF9C] rounded-full"></span>
+<span>Agent Active</span>
+</div>
+<div class="hover:text-[#ffdcbb] cursor-pointer opacity-80 hover:opacity-100 transition-opacity flex items-center gap-1">
+<span class="material-symbols-outlined text-[10px]">fork_right</span>
+<span>main*</span>
+</div>
+<div class="hover:text-[#ffdcbb] cursor-pointer opacity-80 hover:opacity-100 transition-opacity">
+                UTF-8
+            </div>
+</div>
+<div class="text-[#e5e2e1]/40 flex items-center gap-4">
+<span class="hover:text-[#ffdcbb] cursor-pointer">Ln 142, Col 12</span>
+<span class="text-[#56ffa7]">v1.0.4-stable</span>
+</div>
+</footer>
+<!-- FAB Overlay -->
+<div class="fixed bottom-10 right-6 z-40">
+<button class="w-12 h-12 bg-primary-container rounded shadow-2xl flex items-center justify-center text-on-primary-container hover:scale-105 active:scale-95 transition-transform">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">add</span>
+</button>
+</div>
+</body></html>

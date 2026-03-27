@@ -11,7 +11,7 @@ use std::sync::Arc;
 use egui::{Color32, Event, FontId, Key, KeyboardShortcut, Modifiers, RichText, Ui, Vec2};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
-use tracing::warn;
+use tracing::{debug, warn};
 
 use crate::config::AppConfig;
 use crate::engine::{
@@ -23,30 +23,35 @@ use crate::pty::supervisor::PtyEvent;
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
 
-const BG_DARK:       Color32 = Color32::from_rgb(14,  14,  22);
-const BG_PANEL:      Color32 = Color32::from_rgb(22,  22,  34);
-const BG_SIDEBAR:    Color32 = Color32::from_rgb(18,  18,  28);
-const BG_INPUT:      Color32 = Color32::from_rgb(28,  28,  42);
-const BORDER_COLOR:  Color32 = Color32::from_rgb(50,  50,  78);
-const ACCENT:        Color32 = Color32::from_rgb(120, 87,  255);
-const ACCENT_GREEN:  Color32 = Color32::from_rgb(52,  211, 153);
-const ACCENT_RED:    Color32 = Color32::from_rgb(239, 68,  68);
-const ACCENT_YELLOW: Color32 = Color32::from_rgb(251, 191, 36);
-const TEXT_PRIMARY:  Color32 = Color32::from_rgb(225, 225, 235);
-const TEXT_DIM:      Color32 = Color32::from_rgb(110, 110, 140);
-const TEXT_MONO:     &str    = "Consolas, Monaco, Courier New";
+const BG_DARK:       Color32 = Color32::from_rgb(0x13, 0x13, 0x13);
+const BG_PANEL:      Color32 = Color32::from_rgb(0x0e, 0x0e, 0x0e);
+const BG_SIDEBAR:    Color32 = Color32::from_rgb(0x1c, 0x1b, 0x1b);
+const BG_INPUT:      Color32 = Color32::from_rgb(0x35, 0x35, 0x34);
+const BORDER_COLOR:  Color32 = Color32::from_rgba_premultiplied(9, 11, 9, 38);
+const ACCENT:        Color32 = Color32::from_rgb(0x56, 0xff, 0xa7);
+const ACCENT_GREEN:  Color32 = Color32::from_rgb(0x56, 0xff, 0xa7);
+const ACCENT_RED:    Color32 = Color32::from_rgb(0xff, 0xb4, 0xab);
+const ACCENT_YELLOW: Color32 = Color32::from_rgb(0xff, 0xdc, 0xbb);
+const TEXT_PRIMARY:  Color32 = Color32::from_rgb(0xe5, 0xe2, 0xe1);
+const TEXT_DIM:      Color32 = Color32::from_rgb(0xb9, 0xcb, 0xbc);
+const TEXT_MONO:     &str    = "JetBrains Mono";
 const ZOOM_STEP:     f32     = 0.1;
 const MIN_ZOOM:      f32     = 0.7;
 const MAX_ZOOM:      f32     = 2.0;
+const ZOOM_APPLY_TOLERANCE: f32 = 0.01;
 const BASE_WIDTH:    f32     = 1280.0;
 const BASE_HEIGHT:   f32     = 800.0;
 const MIN_AUTO_SCALE:f32     = 0.85;
-const MAX_AUTO_SCALE:f32     = 1.35;
+const MAX_AUTO_SCALE:f32     = 1.0;
 const PORTRAIT_BREAKPOINT: f32 = 900.0;
 const PORTRAIT_ASPECT_THRESHOLD: f32 = 1.05;
+const PORTRAIT_EXIT_BREAKPOINT: f32 = 940.0;
+const PORTRAIT_EXIT_ASPECT_THRESHOLD: f32 = 1.0;
 const PORTRAIT_WORKSPACE_MIN_HEIGHT: f32 = 140.0;
 const PORTRAIT_WORKSPACE_MAX_HEIGHT: f32 = 280.0;
 const PORTRAIT_WORKSPACE_FRACTION: f32 = 0.30;
+const PANEL_HEADER_HEIGHT: f32 = 30.0;
+const PANEL_INPUT_HEIGHT: f32 = 34.0;
 const PERSISTED_UI_KEY: &str = "vibingide_ui_state";
 
 // ── App state ──────────────────────────────────────────────────────────────────
@@ -54,6 +59,13 @@ const PERSISTED_UI_KEY: &str = "vibingide_ui_state";
 /// Which view is active in the left sidebar.
 #[derive(PartialEq, Clone)]
 enum SidebarView { Files, History }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AppScreen {
+    Editor,
+    Agents,
+    Settings,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LayoutMode {
@@ -99,6 +111,8 @@ pub struct VibingApp {
     manual_zoom_factor:   f32,
     applied_zoom_factor:  f32,
     show_portrait_workspace: bool,
+    layout_mode:          LayoutMode,
+    current_screen:       AppScreen,
 }
 
 fn split_cmdline(s: &str) -> Option<(String, Vec<String>)> {
@@ -163,6 +177,8 @@ impl VibingApp {
             manual_zoom_factor,
             applied_zoom_factor:   manual_zoom_factor,
             show_portrait_workspace: persisted_ui.show_portrait_workspace,
+            layout_mode: LayoutMode::Wide,
+            current_screen: AppScreen::Editor,
         }
     }
 
@@ -173,15 +189,25 @@ impl VibingApp {
         visuals.panel_fill          = BG_PANEL;
         visuals.faint_bg_color      = BG_SIDEBAR;
         visuals.extreme_bg_color    = BG_INPUT;
-        visuals.window_rounding     = egui::Rounding::same(8.0);
+        visuals.window_rounding     = egui::Rounding::same(2.0);
         visuals.widgets.noninteractive.bg_fill = BG_PANEL;
         visuals.widgets.inactive.bg_fill       = BG_INPUT;
-        visuals.widgets.hovered.bg_fill        = Color32::from_rgb(60, 60, 90);
+        visuals.widgets.hovered.bg_fill        = Color32::from_rgb(0x35, 0x35, 0x34);
         visuals.widgets.active.bg_fill         = ACCENT;
-        visuals.selection.bg_fill              = Color32::from_rgb(80, 60, 200);
+        visuals.selection.bg_fill              = Color32::from_rgb(0x00, 0x71, 0x42);
         ctx.set_visuals(visuals);
 
-        let fonts = egui::FontDefinitions::default();
+        let mut fonts = egui::FontDefinitions::default();
+        fonts.font_data.insert(
+            "JetBrains Mono".to_owned(),
+            egui::FontData::from_static(include_bytes!("../assets/JetBrainsMono-Regular.ttf")),
+        );
+        fonts
+            .families
+            .entry(egui::FontFamily::Monospace)
+            .or_default()
+            .insert(0, "JetBrains Mono".to_owned());
+
         ctx.set_fonts(fonts);
         ctx.options_mut(|opt| opt.zoom_with_keyboard = false);
 
@@ -224,28 +250,30 @@ impl VibingApp {
             return 1.0;
         }
 
-        let size = ctx.input(|i| i.screen_rect().size());
-        let width_scale = size.x / BASE_WIDTH;
-        let height_scale = size.y / BASE_HEIGHT;
-
-        width_scale
-            .min(height_scale)
-            .clamp(MIN_AUTO_SCALE, MAX_AUTO_SCALE)
+        auto_zoom_factor_for_size(viewport_size_for_layout(ctx))
     }
 
     fn apply_zoom(&mut self, ctx: &egui::Context) {
-        let target_zoom = (self.manual_zoom_factor * self.auto_zoom_factor(ctx))
-            .clamp(MIN_ZOOM, MAX_ZOOM);
+        let target_zoom = normalized_zoom_factor(
+            (self.manual_zoom_factor * self.auto_zoom_factor(ctx))
+                .clamp(MIN_ZOOM, MAX_ZOOM)
+        );
 
-        if (ctx.zoom_factor() - target_zoom).abs() > f32::EPSILON {
+        if (ctx.zoom_factor() - target_zoom).abs() >= ZOOM_APPLY_TOLERANCE {
+            debug!(
+                current_zoom = ctx.zoom_factor(),
+                target_zoom,
+                manual_zoom = self.manual_zoom_factor,
+                "Applying zoom factor"
+            );
             ctx.set_zoom_factor(target_zoom);
         }
 
         self.applied_zoom_factor = target_zoom;
     }
 
-    fn layout_mode(&self, ctx: &egui::Context) -> LayoutMode {
-        layout_mode_for_size(ctx.input(|i| i.screen_rect().size()))
+    fn layout_mode(&self) -> LayoutMode {
+        self.layout_mode
     }
 
     fn persisted_ui_state(&self) -> PersistedUiState {
@@ -430,7 +458,7 @@ impl VibingApp {
     // ── Toolbar ───────────────────────────────────────────────────────────────
 
     fn render_toolbar(&mut self, ctx: &egui::Context) {
-        let layout_mode = self.layout_mode(ctx);
+        let layout_mode = self.layout_mode();
         let toolbar_height = if layout_mode == LayoutMode::Portrait { 74.0 } else { 42.0 };
         egui::TopBottomPanel::top("toolbar")
             .exact_height(toolbar_height)
@@ -585,7 +613,7 @@ impl VibingApp {
     }
 
     fn render_navigation_panels(&mut self, ctx: &egui::Context) {
-        match self.layout_mode(ctx) {
+        match self.layout_mode() {
             LayoutMode::Wide => self.render_wide_sidebar(ctx),
             LayoutMode::Portrait => self.render_portrait_workspace(ctx),
         }
@@ -670,7 +698,7 @@ impl VibingApp {
     }
 
     fn render_panel_switcher(&mut self, ctx: &egui::Context) {
-        if self.layout_mode(ctx) != LayoutMode::Portrait || self.panel_mgr.panels().is_empty() {
+        if self.layout_mode() != LayoutMode::Portrait || self.panel_mgr.panels().is_empty() {
             return;
         }
 
@@ -772,7 +800,7 @@ impl VibingApp {
 
                 self.handle_panel_shortcuts(ctx);
 
-                match self.layout_mode(ctx) {
+                match self.layout_mode() {
                     LayoutMode::Wide => self.render_panels_wide(ui, ctx),
                     LayoutMode::Portrait => self.render_panels_portrait(ui, ctx),
                 }
@@ -869,7 +897,9 @@ impl VibingApp {
                     .fill(header_bg)
                     .inner_margin(egui::Margin::symmetric(8.0, 4.0))
                     .show(ui, |ui| {
-                        ui.horizontal_wrapped(|ui| {
+                        ui.set_min_height(PANEL_HEADER_HEIGHT);
+                        ui.set_max_height(PANEL_HEADER_HEIGHT);
+                        ui.horizontal(|ui| {
                             let (dot, dot_color) = match &status {
                                 PanelStatus::Starting => ("[+]", ACCENT_YELLOW),
                                 PanelStatus::Running { .. } => ("[R]", ACCENT_GREEN),
@@ -899,22 +929,26 @@ impl VibingApp {
 
                 ui.add(egui::Separator::default().horizontal().spacing(0.0));
 
-                let output_height = ui.available_height() - 28.0;
+                let output_height = ui.available_height() - PANEL_INPUT_HEIGHT;
+                let output_size = Vec2::new(ui.available_width(), output_height.max(40.0));
+                let (output_rect, _) = ui.allocate_exact_size(output_size, egui::Sense::hover());
+                let (cols, rows) = terminal_grid_size(ctx, output_rect.size());
+                self.panel_mgr.resize_panel(panel_id, cols, rows);
+
+                let output_snapshot = self
+                    .panel_mgr
+                    .panel(panel_id)
+                    .map(|p| p.terminal.lines().to_vec())
+                    .unwrap_or_default();
+
+                let mut output_ui = ui.child_ui(output_rect, egui::Layout::top_down(egui::Align::Min));
+                output_ui.set_clip_rect(output_rect);
+
                 egui::Frame::none()
                     .fill(BG_DARK)
                     .inner_margin(egui::Margin::symmetric(8.0, 4.0))
-                    .show(ui, |ui| {
-                        ui.set_min_height(output_height.max(40.0));
-                        ui.set_max_height(output_height.max(40.0));
-                        let (cols, rows) = terminal_grid_size(ctx, ui.available_size());
-                        self.panel_mgr.resize_panel(panel_id, cols, rows);
-
-                        let output_snapshot = self
-                            .panel_mgr
-                            .panel(panel_id)
-                            .map(|p| p.terminal.lines().to_vec())
-                            .unwrap_or_default();
-
+                    .show(&mut output_ui, |ui| {
+                        ui.set_min_size(output_rect.size());
                         ui.spacing_mut().item_spacing.y = 0.0;
 
                         if output_snapshot.is_empty() {
@@ -937,14 +971,16 @@ impl VibingApp {
                     .fill(BG_INPUT)
                     .inner_margin(egui::Margin::symmetric(8.0, 6.0))
                     .show(ui, |ui| {
+                        ui.set_min_height(PANEL_INPUT_HEIGHT);
+                        ui.set_max_height(PANEL_INPUT_HEIGHT);
                         let is_running = matches!(status, PanelStatus::Running { .. });
                         let status_text = if is_running {
-                            "Direct terminal mode: type directly into the focused panel"
+                            "Focused panel sends keys directly to the PTY"
                         } else {
                             "Panel is not running"
                         };
 
-                        ui.horizontal_wrapped(|ui| {
+                        ui.horizontal(|ui| {
                             ui.label(
                                 RichText::new(">")
                                     .color(if is_running { ACCENT_GREEN } else { TEXT_DIM })
@@ -956,7 +992,7 @@ impl VibingApp {
                                     .size(12.0)
                             );
                             ui.label(
-                                RichText::new("Ctrl+C sends SIGINT. Ctrl+Shift+Q quits VibingIDE.")
+                                RichText::new("Ctrl+C = SIGINT")
                                     .color(TEXT_DIM)
                                     .size(11.0)
                             );
@@ -1011,13 +1047,40 @@ impl eframe::App for VibingApp {
         self.drain_pty_events();
         self.handle_zoom_shortcuts(ctx);
         self.apply_zoom(ctx);
+        let next_layout_mode = layout_mode_for_size_with_hysteresis(
+            viewport_size_for_layout(ctx),
+            self.layout_mode,
+        );
+        if next_layout_mode != self.layout_mode {
+            debug!(
+                ?self.layout_mode,
+                ?next_layout_mode,
+                viewport_size = ?viewport_size_for_layout(ctx),
+                "Layout mode changed"
+            );
+        }
+        self.layout_mode = next_layout_mode;
         self.handle_terminal_input(ctx);
 
-        // 2. Render UI
-        self.render_toolbar(ctx);
-        self.render_navigation_panels(ctx);
-        self.render_panel_switcher(ctx);
-        self.render_panels(ctx);
+        // 2. Render Shell & Workspace
+        self.render_top_app_bar(ctx);
+        
+        if self.layout_mode == LayoutMode::Portrait {
+             self.render_mobile_bottom_nav(ctx);
+        } else {
+             self.render_side_nav_bar(ctx);
+             self.render_footer(ctx);
+        }
+
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none().fill(BG_DARK))
+            .show(ctx, |ui| {
+                 match self.current_screen {
+                     AppScreen::Editor => self.render_screen_editor(ui, ctx),
+                     AppScreen::Agents => self.render_screen_agents(ui, ctx),
+                     AppScreen::Settings => self.render_screen_settings(ui, ctx),
+                 }
+            });
 
         // 3. Overlays
         if self.show_help             { self.show_help_window(ctx); }
@@ -1094,6 +1157,44 @@ fn layout_mode_for_size(size: Vec2) -> LayoutMode {
     } else {
         LayoutMode::Wide
     }
+}
+
+fn layout_mode_for_size_with_hysteresis(size: Vec2, previous: LayoutMode) -> LayoutMode {
+    match previous {
+        LayoutMode::Wide => layout_mode_for_size(size),
+        LayoutMode::Portrait => {
+            if size.x > PORTRAIT_EXIT_BREAKPOINT
+                && size.y <= size.x * PORTRAIT_EXIT_ASPECT_THRESHOLD
+            {
+                LayoutMode::Wide
+            } else {
+                LayoutMode::Portrait
+            }
+        }
+    }
+}
+
+fn viewport_size_for_layout(ctx: &egui::Context) -> Vec2 {
+    let zoom_factor = ctx.zoom_factor().max(f32::EPSILON);
+    ctx.input(|i| {
+        i.viewport()
+            .inner_rect
+            .map(|rect| rect.size())
+            .unwrap_or_else(|| i.screen_rect().size())
+    }) * zoom_factor
+}
+
+fn auto_zoom_factor_for_size(size: Vec2) -> f32 {
+    let width_scale = size.x / BASE_WIDTH;
+    let height_scale = size.y / BASE_HEIGHT;
+
+    width_scale
+        .min(height_scale)
+        .clamp(MIN_AUTO_SCALE, MAX_AUTO_SCALE)
+}
+
+fn normalized_zoom_factor(zoom_factor: f32) -> f32 {
+    (zoom_factor * 100.0).round() / 100.0
 }
 
 fn terminal_grid_size(ctx: &egui::Context, size: Vec2) -> (u16, u16) {
@@ -1342,4 +1443,180 @@ mod tests {
         assert_eq!(layout_mode_for_size(Vec2::new(820.0, 700.0)), LayoutMode::Portrait);
         assert_eq!(layout_mode_for_size(Vec2::new(1280.0, 800.0)), LayoutMode::Wide);
     }
+
+    #[test]
+    fn portrait_layout_hysteresis_prevents_threshold_flapping() {
+        assert_eq!(
+            layout_mode_for_size_with_hysteresis(Vec2::new(895.0, 700.0), LayoutMode::Wide),
+            LayoutMode::Portrait
+        );
+        assert_eq!(
+            layout_mode_for_size_with_hysteresis(Vec2::new(905.0, 700.0), LayoutMode::Portrait),
+            LayoutMode::Portrait
+        );
+        assert_eq!(
+            layout_mode_for_size_with_hysteresis(Vec2::new(960.0, 700.0), LayoutMode::Portrait),
+            LayoutMode::Wide
+        );
+    }
+
+    #[test]
+    fn auto_zoom_uses_unzoomed_viewport_size() {
+        let raw_zoomed_screen = Vec2::new(1280.0 / 1.3, 800.0 / 1.3);
+        let recovered_viewport = raw_zoomed_screen * 1.3;
+
+        assert_eq!(recovered_viewport, Vec2::new(1280.0, 800.0));
+        assert_eq!(auto_zoom_factor_for_size(recovered_viewport), 1.0);
+    }
+
+    #[test]
+    fn auto_zoom_does_not_upscale_large_windows() {
+        assert_eq!(auto_zoom_factor_for_size(Vec2::new(1600.0, 1000.0)), 1.0);
+        assert_eq!(auto_zoom_factor_for_size(Vec2::new(1920.0, 1080.0)), 1.0);
+    }
+
+    #[test]
+    fn zoom_factor_normalization_removes_tiny_jitter() {
+        assert_eq!(normalized_zoom_factor(1.279_999), 1.28);
+        assert_eq!(normalized_zoom_factor(1.280_001), 1.28);
+    }
 }
+
+
+
+
+
+impl VibingApp {
+    fn render_top_app_bar(&mut self, ctx: &egui::Context) {
+        egui::TopBottomPanel::top("top_app_bar")
+            .exact_height(48.0)
+            .frame(egui::Frame::none()
+                .fill(Color32::from_rgba_premultiplied(19, 19, 19, 153)) // #131313/60
+                .stroke(egui::Stroke::new(1.0, BORDER_COLOR)))
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.add_space(24.0);
+                    ui.label(RichText::new("VibingIDE")
+                        .color(ACCENT)
+                        .size(18.0)
+                        .strong());
+                    
+                    // Search bar mockup
+                    ui.add_space(24.0);
+                    let (rect, _) = ui.allocate_exact_size(Vec2::new(256.0, 24.0), egui::Sense::hover());
+                    ui.painter().rect_filled(rect, 2.0, BG_INPUT);
+                    ui.painter().rect_stroke(rect, 2.0, egui::Stroke::new(1.0, BORDER_COLOR));
+                    ui.painter().text(
+                        rect.left_center() + Vec2::new(8.0, 0.0),
+                        egui::Align2::LEFT_CENTER,
+                        "Search components...",
+                        FontId::proportional(12.0),
+                        TEXT_DIM
+                    );
+                    
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.add_space(24.0);
+                        if ui.add(egui::Button::new(RichText::new(" ☰ ").color(TEXT_PRIMARY).size(18.0)).frame(false)).clicked() {}
+                        if ui.add(egui::Button::new(RichText::new(" ⚡ ").color(TEXT_PRIMARY).size(18.0)).frame(false)).clicked() {}
+                        if ui.add(egui::Button::new(RichText::new(" >_ ").color(TEXT_PRIMARY).size(18.0)).frame(false)).clicked() {}
+                    });
+                });
+            });
+    }
+
+    fn render_side_nav_bar(&mut self, ctx: &egui::Context) {
+        egui::SidePanel::left("side_nav_bar")
+            .exact_width(64.0)
+            .frame(egui::Frame::none()
+                .fill(BG_PANEL)
+                .stroke(egui::Stroke::new(1.0, BG_SIDEBAR)))
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(24.0);
+                    ui.label(RichText::new("V").color(ACCENT).size(24.0).strong());
+                    ui.add_space(32.0);
+                    
+                    if ui.add(egui::Button::new(RichText::new("🗀").size(24.0).color(if self.current_screen == AppScreen::Editor { ACCENT } else { TEXT_DIM })).frame(false)).clicked() {
+                        self.current_screen = AppScreen::Editor;
+                    }
+                    ui.add_space(16.0);
+                    
+                    if ui.add(egui::Button::new(RichText::new("🤖").size(24.0).color(if self.current_screen == AppScreen::Agents { ACCENT } else { TEXT_DIM })).frame(false)).clicked() {
+                        self.current_screen = AppScreen::Agents;
+                    }
+                    ui.add_space(16.0);
+
+                    if ui.add(egui::Button::new(RichText::new("⚙").size(24.0).color(if self.current_screen == AppScreen::Settings { ACCENT } else { TEXT_DIM })).frame(false)).clicked() {
+                        self.current_screen = AppScreen::Settings;
+                    }
+                });
+            });
+    }
+
+    fn render_mobile_bottom_nav(&mut self, ctx: &egui::Context) {
+        egui::TopBottomPanel::bottom("mobile_bottom_nav")
+            .exact_height(56.0)
+            .frame(egui::Frame::none().fill(BG_PANEL).stroke(egui::Stroke::new(2.0, BG_SIDEBAR)))
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    let w = ui.available_width() / 3.0;
+                    if ui.add_sized([w, 56.0], egui::Button::new("Editor").frame(false)).clicked() { self.current_screen = AppScreen::Editor; }
+                    if ui.add_sized([w, 56.0], egui::Button::new("Agents").frame(false)).clicked() { self.current_screen = AppScreen::Agents; }
+                    if ui.add_sized([w, 56.0], egui::Button::new("Settings").frame(false)).clicked() { self.current_screen = AppScreen::Settings; }
+                });
+            });
+    }
+
+    fn render_footer(&mut self, ctx: &egui::Context) {
+        egui::TopBottomPanel::bottom("footer")
+            .exact_height(24.0)
+            .frame(egui::Frame::none()
+                .fill(BG_PANEL)
+                .stroke(egui::Stroke::new(1.0, BORDER_COLOR)))
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.add_space(16.0);
+                    ui.label(RichText::new("main*").color(ACCENT).size(11.0));
+                    ui.add_space(16.0);
+                    ui.label(RichText::new("● Agent: Idle").color(TEXT_DIM).size(11.0));
+                    
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.add_space(16.0);
+                        ui.label(RichText::new("v1.0.4-stable").color(Color32::from_rgb(183, 234, 255)).size(11.0));
+                        ui.add_space(16.0);
+                        ui.label(RichText::new("UTF-8").color(TEXT_DIM).size(11.0));
+                    });
+                });
+            });
+    }
+
+    fn render_screen_editor(&mut self, ui: &mut Ui, ctx: &egui::Context) {
+        // Render 2 panels: Left file tree sidebar, right Editor + terminal split
+        self.render_wide_sidebar(ctx);
+        if self.panel_mgr.panels().is_empty() {
+            self.render_empty_state(ui);
+        } else {
+            self.render_panels_wide(ui, ctx);
+        }
+    }
+
+    fn render_screen_agents(&mut self, ui: &mut Ui, ctx: &egui::Context) {
+        ui.vertical_centered(|ui| {
+            ui.add_space(32.0);
+            ui.label(RichText::new("Agent Command Center Screen Mockup").size(24.0).color(ACCENT));
+            if self.panel_mgr.panels().is_empty() {
+                self.render_empty_state(ui);
+            } else {
+                self.render_panels_wide(ui, ctx); 
+            }
+        });
+    }
+
+    fn render_screen_settings(&mut self, ui: &mut Ui, ctx: &egui::Context) {
+        ui.vertical_centered(|ui| {
+            ui.add_space(32.0);
+            ui.label(RichText::new("Settings Configuration Desktop Mockup").size(24.0).color(TEXT_PRIMARY));
+        });
+    }
+}
+

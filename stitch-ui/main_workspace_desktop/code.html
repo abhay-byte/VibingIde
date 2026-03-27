@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>VibingIDE - Main Workspace</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                "on-primary-fixed-variant": "#00522f",
+                "on-tertiary": "#482900",
+                "on-secondary-container": "#00566b",
+                "on-primary-fixed": "#002110",
+                "on-primary": "#00391f",
+                "outline-variant": "#3b4b3f",
+                "on-secondary": "#003543",
+                "secondary": "#a6e6ff",
+                "on-tertiary-container": "#8e5500",
+                "secondary-fixed-dim": "#4cd6ff",
+                "on-error": "#690005",
+                "background": "#131313",
+                "inverse-surface": "#e5e2e1",
+                "on-background": "#e5e2e1",
+                "inverse-primary": "#006d40",
+                "on-error-container": "#ffdad6",
+                "surface-container-lowest": "#0e0e0e",
+                "outline": "#849587",
+                "on-primary-container": "#007142",
+                "surface-container-highest": "#353534",
+                "primary-fixed-dim": "#00e38a",
+                "error-container": "#93000a",
+                "primary-container": "#00ff9c",
+                "secondary-fixed": "#b7eaff",
+                "on-tertiary-fixed": "#2c1700",
+                "tertiary-fixed": "#ffdcbb",
+                "inverse-on-surface": "#313030",
+                "surface-container": "#201f1f",
+                "primary-fixed": "#56ffa7",
+                "tertiary": "#fffbff",
+                "on-tertiary-fixed-variant": "#673d00",
+                "surface-container-high": "#2a2a2a",
+                "surface": "#131313",
+                "surface-tint": "#00e38a",
+                "surface-bright": "#393939",
+                "tertiary-container": "#ffd9b4",
+                "error": "#ffb4ab",
+                "tertiary-fixed-dim": "#ffb869",
+                "on-secondary-fixed-variant": "#004e60",
+                "surface-variant": "#353534",
+                "on-secondary-fixed": "#001f28",
+                "secondary-container": "#14d1ff",
+                "on-surface-variant": "#b9cbbc",
+                "primary": "#f3fff3",
+                "surface-container-low": "#1c1b1b",
+                "surface-dim": "#131313",
+                "on-surface": "#e5e2e1"
+              },
+              fontFamily: {
+                "headline": ["Space Grotesk"],
+                "body": ["Inter"],
+                "label": ["Inter"],
+                "custom-mono": ["JetBrains Mono"]
+              },
+              borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .syntax-keyword { color: #ffb869; }
+        .syntax-fn { color: #56ffa7; }
+        .syntax-string { color: #b7eaff; }
+        .syntax-comment { color: #849587; }
+        .syntax-type { color: #ffd9b4; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #353534; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3b4b3f; }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body overflow-hidden h-screen flex flex-col select-none">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full flex justify-between items-center px-6 h-12 z-40 bg-[#131313]/60 backdrop-blur-xl border-b border-[#3b4b3f]/15 shadow-[0_0_40px_rgba(0,227,138,0.04)]">
+<div class="flex items-center gap-6">
+<span class="font-['Space_Grotesk'] font-bold text-[#56ffa7] text-lg">VibingIDE</span>
+<div class="flex items-center bg-surface-container-highest px-3 py-1 gap-2 rounded-sm border-b border-outline-variant">
+<span class="material-symbols-outlined text-sm opacity-50">search</span>
+<input class="bg-transparent border-none outline-none text-xs font-custom-mono w-64 p-0 placeholder:opacity-30" placeholder="Search components or files..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4 text-[#e5e2e1]">
+<span class="material-symbols-outlined cursor-pointer active:opacity-70 hover:text-[#56ffa7] transition-colors" data-icon="terminal">terminal</span>
+<span class="material-symbols-outlined cursor-pointer active:opacity-70 hover:text-[#56ffa7] transition-colors" data-icon="bolt">bolt</span>
+<span class="material-symbols-outlined cursor-pointer active:opacity-70 hover:text-[#56ffa7] transition-colors" data-icon="more_vert">more_vert</span>
+</div>
+</header>
+<!-- SideNavBar (Rail) -->
+<nav class="fixed left-0 top-0 h-full flex flex-col items-center py-4 z-50 bg-[#131313] dark:bg-[#131313] w-16 border-r border-[#1c1b1b]">
+<div class="mb-8 mt-12">
+<span class="material-symbols-outlined text-[#56ffa7] text-2xl" data-icon="folder_open" style="font-variation-settings: 'FILL' 1;">folder_open</span>
+</div>
+<div class="flex flex-col gap-6 flex-1">
+<div class="text-[#56ffa7] border-l-2 border-[#56ffa7] bg-[#1c1b1b] p-2 flex flex-col items-center justify-center scale-95 active:scale-90 duration-150 cursor-pointer">
+<span class="material-symbols-outlined" data-icon="folder_open">folder_open</span>
+</div>
+<div class="text-[#e5e2e1] opacity-50 hover:opacity-100 hover:bg-[#1c1b1b] transition-all p-2 flex flex-col items-center justify-center scale-95 active:scale-90 duration-150 cursor-pointer">
+<span class="material-symbols-outlined" data-icon="smart_toy">smart_toy</span>
+</div>
+<div class="text-[#e5e2e1] opacity-50 hover:opacity-100 hover:bg-[#1c1b1b] transition-all p-2 flex flex-col items-center justify-center scale-95 active:scale-90 duration-150 cursor-pointer">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</div>
+<div class="text-[#e5e2e1] opacity-50 hover:opacity-100 hover:bg-[#1c1b1b] transition-all p-2 flex flex-col items-center justify-center scale-95 active:scale-90 duration-150 cursor-pointer">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</div>
+</div>
+<div class="mt-auto mb-10 text-[#e5e2e1] opacity-50 hover:opacity-100 transition-all p-2 cursor-pointer">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 ml-16 mt-12 mb-6 flex overflow-hidden">
+<!-- Files & History Sidebar -->
+<aside class="w-64 bg-surface-container-low border-r border-surface-container flex flex-col shrink-0">
+<div class="p-3 flex items-center justify-between">
+<span class="font-headline text-xs font-bold tracking-widest text-on-surface-variant uppercase">Explorer</span>
+<span class="material-symbols-outlined text-sm opacity-40">unfold_less</span>
+</div>
+<div class="flex-1 overflow-y-auto">
+<div class="py-1">
+<div class="flex items-center px-4 py-1 gap-2 hover:bg-surface-container-highest cursor-pointer group">
+<span class="material-symbols-outlined text-sm opacity-30 group-hover:opacity-100 transition-opacity">expand_more</span>
+<span class="material-symbols-outlined text-[#56ffa7] text-base" data-icon="folder">folder</span>
+<span class="text-sm font-medium">src</span>
+</div>
+<div class="flex items-center px-4 py-1 pl-10 gap-2 bg-surface-container-highest border-l-2 border-primary-fixed cursor-pointer">
+<span class="material-symbols-outlined text-[#ffdcbb] text-base" data-icon="code">code</span>
+<span class="text-sm font-medium text-primary-fixed">main.rs</span>
+</div>
+<div class="flex items-center px-4 py-1 pl-10 gap-2 hover:bg-surface-container-highest cursor-pointer group">
+<span class="material-symbols-outlined text-[#b7eaff] text-base" data-icon="code">code</span>
+<span class="text-sm font-medium opacity-70 group-hover:opacity-100 transition-opacity">lib.rs</span>
+</div>
+<div class="flex items-center px-4 py-1 pl-10 gap-2 hover:bg-surface-container-highest cursor-pointer group">
+<span class="material-symbols-outlined text-[#b7eaff] text-base" data-icon="code">code</span>
+<span class="text-sm font-medium opacity-70 group-hover:opacity-100 transition-opacity">utils.rs</span>
+</div>
+<div class="flex items-center px-4 py-1 gap-2 hover:bg-surface-container-highest cursor-pointer group mt-4">
+<span class="material-symbols-outlined text-sm opacity-30 group-hover:opacity-100 transition-opacity">chevron_right</span>
+<span class="material-symbols-outlined text-[#ffdcbb] text-base" data-icon="folder">folder</span>
+<span class="text-sm font-medium">tests</span>
+</div>
+<div class="flex items-center px-4 py-1 gap-2 hover:bg-surface-container-highest cursor-pointer group">
+<span class="material-symbols-outlined text-sm opacity-30 group-hover:opacity-100 transition-opacity">chevron_right</span>
+<span class="material-symbols-outlined text-outline text-base" data-icon="description">description</span>
+<span class="text-sm font-medium opacity-70">Cargo.toml</span>
+</div>
+</div>
+</div>
+<div class="border-t border-outline-variant/10 p-3">
+<div class="flex items-center justify-between mb-2">
+<span class="font-headline text-[10px] font-bold tracking-widest text-on-surface-variant uppercase">History</span>
+<span class="material-symbols-outlined text-xs opacity-40">history</span>
+</div>
+<div class="space-y-2">
+<div class="text-[11px] opacity-40 italic">2 minutes ago — saved main.rs</div>
+<div class="text-[11px] opacity-40 italic">15 minutes ago — cargo test</div>
+</div>
+</div>
+</aside>
+<!-- Code Editor Section -->
+<section class="flex-1 flex flex-col bg-surface overflow-hidden">
+<div class="flex bg-surface-container-lowest h-9 border-b border-surface-container-low">
+<div class="flex items-center px-4 gap-2 bg-surface border-t-2 border-primary-fixed-dim border-r border-surface-container-low h-full">
+<span class="material-symbols-outlined text-[#56ffa7] text-xs" data-icon="code">code</span>
+<span class="text-xs font-medium">main.rs</span>
+<span class="material-symbols-outlined text-xs opacity-30 hover:opacity-100 cursor-pointer">close</span>
+</div>
+<div class="flex items-center px-4 gap-2 opacity-40 hover:opacity-100 cursor-pointer border-r border-surface-container-low h-full">
+<span class="material-symbols-outlined text-[#b7eaff] text-xs" data-icon="code">code</span>
+<span class="text-xs font-medium">lib.rs</span>
+<span class="material-symbols-outlined text-xs opacity-30">close</span>
+</div>
+</div>
+<div class="flex-1 p-6 font-custom-mono text-sm leading-relaxed overflow-y-auto selection:bg-primary-container selection:text-on-primary-container">
+<div class="flex gap-6">
+<div class="text-right text-outline-variant select-none opacity-30 w-8">
+                        1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16
+                    </div>
+<div class="flex-1">
+<span class="syntax-keyword">use</span> std::collections::HashMap;<br/><br/>
+<span class="syntax-keyword">#[derive(Debug)]</span><br/>
+<span class="syntax-keyword">pub struct</span> <span class="syntax-type">VibingEngine</span> {<br/>
+                            agents: <span class="syntax-type">HashMap</span>&lt;<span class="syntax-type">String</span>, <span class="syntax-type">AgentState</span>&gt;,<br/>
+                        }<br/><br/>
+<span class="syntax-keyword">impl</span> <span class="syntax-type">VibingEngine</span> {<br/>
+                            <span class="syntax-keyword">pub fn</span> <span class="syntax-fn">new</span>() -&gt; <span class="syntax-keyword">Self</span> {<br/>
+                                <span class="syntax-type">VibingEngine</span> {<br/>
+                                    agents: <span class="syntax-type">HashMap</span>::<span class="syntax-fn">new</span>(),<br/>
+                                }<br/>
+                            }<br/><br/>
+                            <span class="syntax-keyword">pub fn</span> <span class="syntax-fn">dispatch_task</span>(&amp;<span class="syntax-keyword">mut self</span>, id: &amp;<span class="syntax-type">str</span>) {<br/>
+                                <span class="syntax-comment">// Kinetic syntax implementation</span><br/>
+                                <span class="syntax-keyword">let</span> msg = <span class="syntax-string">"Initializing..."</span>;<br/>
+                                println!(<span class="syntax-string">"{}"</span>, msg);<br/>
+                            }<br/>
+                        }
+                    </div>
+</div>
+</div>
+</section>
+<!-- Agent Panel - Split View Right -->
+<section class="w-[500px] flex flex-col bg-surface-container-low border-l border-surface-container shrink-0 p-2 gap-2">
+<!-- Agent Panel 1: Cargo Test -->
+<div class="flex-1 bg-surface-container-lowest rounded-sm border border-outline-variant/10 flex flex-col overflow-hidden">
+<div class="flex items-center justify-between px-3 py-2 bg-surface-container-high border-b-2 border-primary-fixed">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm text-[#56ffa7]" data-icon="terminal">terminal</span>
+<span class="text-[10px] font-bold uppercase tracking-widest font-headline">Agent: cargo test</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="flex items-center bg-tertiary-container/10 px-2 py-0.5 rounded-full border border-tertiary-container/30">
+<span class="w-2 h-2 rounded-full bg-tertiary-fixed mr-2 animate-pulse"></span>
+<span class="text-[9px] font-bold text-tertiary-fixed-dim uppercase">Running</span>
+</div>
+</div>
+</div>
+<div class="flex-1 p-3 font-custom-mono text-[11px] overflow-y-auto bg-[#0a0a0a]">
+<div class="text-outline opacity-50 mb-1">$ cargo test --all-features</div>
+<div class="text-on-surface">Compiling vibing-core v0.1.0 (/workspaces/vibing-ide)</div>
+<div class="text-[#56ffa7] mt-1">Finished test [unoptimized + debuginfo] target(s) in 0.84s</div>
+<div class="text-on-surface mt-2">Running unittests src/main.rs (target/debug/deps/vibing-...)</div>
+<div class="flex gap-2 mt-1">
+<span class="text-[#56ffa7]">test tests::engine_initialization ... ok</span>
+</div>
+<div class="flex gap-2">
+<span class="text-[#56ffa7]">test tests::agent_dispatch_success ... ok</span>
+</div>
+<div class="flex gap-2">
+<span class="text-error">test tests::syntax_validation_failed ... FAILED</span>
+</div>
+<div class="mt-2 p-2 bg-error-container/10 border-l-2 border-error">
+<span class="text-error font-bold">failures:</span><br/>
+<span class="text-error opacity-80">---- tests::syntax_validation_failed stdout ----</span><br/>
+<span class="text-on-surface">thread 'main' panicked at 'assertion failed: `(left == right)`'</span>
+</div>
+</div>
+</div>
+<!-- Agent Panel 2: Rust Analyzer / Helper -->
+<div class="flex-1 bg-surface-container-lowest rounded-sm border border-outline-variant/10 flex flex-col overflow-hidden">
+<div class="flex items-center justify-between px-3 py-2 bg-surface-container-high border-b-2 border-outline-variant/30">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm text-[#b7eaff]" data-icon="smart_toy">smart_toy</span>
+<span class="text-[10px] font-bold uppercase tracking-widest font-headline text-secondary-fixed">Agent: rust-analyzer</span>
+</div>
+<span class="material-symbols-outlined text-xs opacity-40">close</span>
+</div>
+<div class="flex-1 p-3 font-custom-mono text-[11px] overflow-y-auto">
+<div class="text-secondary-fixed opacity-60 mb-2 italic">// Analyzing codebase...</div>
+<div class="mb-4">
+<div class="text-tertiary-fixed-dim border-b border-outline-variant/20 pb-1 mb-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">lightbulb</span>
+<span>Optimization Suggestion</span>
+</div>
+<div class="text-on-surface-variant leading-relaxed">
+                            Detected redundant allocation in <span class="text-primary-fixed">main.rs:12</span>. 
+                            Consider using <span class="bg-surface-container-highest px-1 rounded text-[#b7eaff]">String::with_capacity(n)</span> 
+                            to avoid multiple re-allocations during agent mapping.
+                        </div>
+</div>
+<div class="text-outline opacity-40 mb-1">Indexing crates... [84/112]</div>
+<div class="mt-auto pt-4">
+<div class="flex items-center bg-surface-container-highest/50 px-2 py-1 gap-2 border-t border-outline-variant/20">
+<span class="material-symbols-outlined text-xs text-primary-fixed">chevron_right</span>
+<input class="bg-transparent border-none outline-none flex-1 text-[11px] font-custom-mono p-1" placeholder="Ask agent to refactor..." type="text"/>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer / Status Bar -->
+<footer class="fixed bottom-0 w-full h-6 flex justify-between items-center px-4 z-30 bg-[#0e0e0e] border-t-2 border-[#1c1b1b] font-['JetBrains_Mono'] text-[11px]">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-1.5 text-[#56ffa7]">
+<span class="material-symbols-outlined text-[14px]">account_tree</span>
+<span class="hover:text-[#56ffa7] cursor-pointer transition-colors">main</span>
+</div>
+<div class="flex items-center gap-1.5 text-[#e5e2e1] opacity-70">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-fixed"></span>
+<span class="hover:text-[#56ffa7] cursor-pointer transition-colors">● Agent: Idle</span>
+</div>
+<div class="text-[#e5e2e1] opacity-40">v1.0.4-stable</div>
+</div>
+<div class="flex items-center gap-6 text-[#b7eaff]">
+<span class="hover:text-[#56ffa7] cursor-pointer transition-colors">UTF-8</span>
+<span class="hover:text-[#56ffa7] cursor-pointer transition-colors">LN 12, COL 4</span>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">notifications</span>
+<span>0</span>
+</div>
+</div>
+</footer>
+<!-- BottomNavBar (Mobile Only suppression as per rules) -->
+<nav class="fixed bottom-0 w-full flex justify-around items-center z-50 md:hidden h-14 bg-[#0e0e0e] border-t-2 border-[#1c1b1b]">
+<div class="flex flex-col items-center justify-center text-[#56ffa7] border-t-2 border-[#56ffa7] -mt-[2px] w-full h-full">
+<span class="material-symbols-outlined" data-icon="code">code</span>
+<span class="text-[10px] uppercase tracking-widest font-['Inter']">Editor</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#e5e2e1] opacity-60 w-full h-full">
+<span class="material-symbols-outlined" data-icon="terminal">terminal</span>
+<span class="text-[10px] uppercase tracking-widest font-['Inter']">Agents</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#e5e2e1] opacity-60 w-full h-full">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span class="text-[10px] uppercase tracking-widest font-['Inter']">Files</span>
+</div>
+</nav>
+</body></html>

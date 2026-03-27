@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "on-primary-fixed-variant": "#00522f",
+            "on-tertiary": "#482900",
+            "on-secondary-container": "#00566b",
+            "on-primary-fixed": "#002110",
+            "on-primary": "#00391f",
+            "outline-variant": "#3b4b3f",
+            "on-secondary": "#003543",
+            "secondary": "#a6e6ff",
+            "on-tertiary-container": "#8e5500",
+            "secondary-fixed-dim": "#4cd6ff",
+            "on-error": "#690005",
+            "background": "#131313",
+            "inverse-surface": "#e5e2e1",
+            "on-background": "#e5e2e1",
+            "inverse-primary": "#006d40",
+            "on-error-container": "#ffdad6",
+            "surface-container-lowest": "#0e0e0e",
+            "outline": "#849587",
+            "on-primary-container": "#007142",
+            "surface-container-highest": "#353534",
+            "primary-fixed-dim": "#00e38a",
+            "error-container": "#93000a",
+            "primary-container": "#00ff9c",
+            "secondary-fixed": "#b7eaff",
+            "on-tertiary-fixed": "#2c1700",
+            "tertiary-fixed": "#ffdcbb",
+            "inverse-on-surface": "#313030",
+            "surface-container": "#201f1f",
+            "primary-fixed": "#56ffa7",
+            "tertiary": "#fffbff",
+            "on-tertiary-fixed-variant": "#673d00",
+            "surface-container-high": "#2a2a2a",
+            "surface": "#131313",
+            "surface-tint": "#00e38a",
+            "surface-bright": "#393939",
+            "tertiary-container": "#ffd9b4",
+            "error": "#ffb4ab",
+            "tertiary-fixed-dim": "#ffb869",
+            "on-secondary-fixed-variant": "#004e60",
+            "surface-variant": "#353534",
+            "on-secondary-fixed": "#001f28",
+            "secondary-container": "#14d1ff",
+            "on-surface-variant": "#b9cbbc",
+            "primary": "#f3fff3",
+            "surface-container-low": "#1c1b1b",
+            "surface-dim": "#131313",
+            "on-surface": "#e5e2e1"
+          },
+          fontFamily: {
+            "headline": ["Space Grotesk"],
+            "body": ["Inter"],
+            "label": ["Inter"],
+            "custom-mono": ["JetBrains Mono"]
+          },
+          borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #131313;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #3b4b3f;
+    }
+    .ghost-border-left {
+      border-left: 1px solid rgba(59, 75, 63, 0.15);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-surface font-body selection:bg-primary-container selection:text-on-primary-container overflow-hidden">
+<!-- SideNavBar Shell -->
+<aside class="fixed left-0 top-0 h-full flex flex-col items-center py-4 z-50 bg-[#131313] dark:bg-[#131313] w-16 bg-[#1c1b1b]">
+<div class="mb-8">
+<span class="text-[#56ffa7] font-bold text-xl font-['Space_Grotesk'] tracking-tight">V</span>
+</div>
+<nav class="flex flex-col gap-6">
+<button class="text-[#e5e2e1] opacity-50 hover:opacity-100 hover:bg-[#1c1b1b] transition-all scale-95 active:scale-90 duration-150 p-2">
+<span class="material-symbols-outlined">folder_open</span>
+</button>
+<button class="text-[#e5e2e1] opacity-50 hover:opacity-100 hover:bg-[#1c1b1b] transition-all scale-95 active:scale-90 duration-150 p-2">
+<span class="material-symbols-outlined">smart_toy</span>
+</button>
+<button class="text-[#e5e2e1] opacity-50 hover:opacity-100 hover:bg-[#1c1b1b] transition-all scale-95 active:scale-90 duration-150 p-2">
+<span class="material-symbols-outlined">search</span>
+</button>
+<button class="text-[#56ffa7] border-l-2 border-[#56ffa7] bg-[#1c1b1b] transition-all scale-95 active:scale-90 duration-150 p-2">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<button class="text-[#e5e2e1] opacity-50 hover:opacity-100 hover:bg-[#1c1b1b] transition-all scale-95 active:scale-90 duration-150 p-2">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+</nav>
+</aside>
+<!-- TopAppBar Shell -->
+<header class="fixed top-0 w-full flex justify-between items-center px-6 h-12 z-40 bg-[#131313]/60 backdrop-blur-xl border-b border-[#3b4b3f]/15 shadow-[0_0_40px_rgba(0,227,138,0.04)] ml-16">
+<div class="flex items-center gap-4">
+<span class="font-['Space_Grotesk'] font-bold text-[#56ffa7]">VibingIDE</span>
+<span class="text-[#e5e2e1] opacity-30">/</span>
+<span class="font-['Inter'] text-sm text-[#56ffa7] font-bold">Project Settings</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 bg-surface-container-highest px-3 py-1 rounded-sm border-b border-outline-variant">
+<span class="material-symbols-outlined text-sm opacity-50">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-xs font-custom-mono w-48 text-on-surface" placeholder="Search parameters..." type="text"/>
+</div>
+<div class="flex gap-3">
+<span class="material-symbols-outlined text-[#e5e2e1] hover:text-[#56ffa7] transition-colors cursor-pointer active:opacity-70 text-lg">terminal</span>
+<span class="material-symbols-outlined text-[#e5e2e1] hover:text-[#56ffa7] transition-colors cursor-pointer active:opacity-70 text-lg">bolt</span>
+<span class="material-symbols-outlined text-[#e5e2e1] hover:text-[#56ffa7] transition-colors cursor-pointer active:opacity-70 text-lg">more_vert</span>
+</div>
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="pt-12 pl-16 h-screen flex">
+<!-- Left: Settings Navigation -->
+<nav class="w-64 bg-surface-container-lowest flex flex-col pt-8">
+<div class="px-6 mb-6">
+<h2 class="font-headline text-headline-sm text-on-surface-variant uppercase tracking-widest text-[10px] font-bold opacity-60">Configuration</h2>
+</div>
+<ul class="flex flex-col">
+<li>
+<a class="flex items-center gap-3 px-6 py-3 text-sm font-medium border-r-2 border-primary-fixed bg-surface-container-low text-primary-fixed transition-all" href="#">
+<span class="material-symbols-outlined text-[18px]">edit_note</span>
+            Editor
+          </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-6 py-3 text-sm font-medium text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" href="#">
+<span class="material-symbols-outlined text-[18px] opacity-50 group-hover:opacity-100">smart_toy</span>
+            Agents
+          </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-6 py-3 text-sm font-medium text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" href="#">
+<span class="material-symbols-outlined text-[18px] opacity-50 group-hover:opacity-100">keyboard</span>
+            Keyboard
+          </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-6 py-3 text-sm font-medium text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" href="#">
+<span class="material-symbols-outlined text-[18px] opacity-50 group-hover:opacity-100">extension</span>
+            Plugins
+          </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-6 py-3 text-sm font-medium text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" href="#">
+<span class="material-symbols-outlined text-[18px] opacity-50 group-hover:opacity-100">tune</span>
+            Advanced
+          </a>
+</li>
+</ul>
+<div class="mt-auto p-6">
+<div class="bg-tertiary-container/10 border border-tertiary-container/20 p-4 rounded-sm">
+<div class="flex items-center gap-2 mb-2">
+<span class="w-2 h-2 rounded-full bg-tertiary-fixed shadow-[0_0_8px_#ffdcbb]"></span>
+<span class="font-label text-[10px] uppercase font-bold text-tertiary-fixed">Agent: Idle</span>
+</div>
+<p class="text-[11px] text-on-surface-variant leading-relaxed">System resources at 12%. No active tasks assigned.</p>
+</div>
+</div>
+</nav>
+<!-- Right: Config Editor & Logs -->
+<div class="flex-1 flex flex-col bg-surface overflow-hidden">
+<!-- Content Header -->
+<div class="flex justify-between items-center px-8 py-6 bg-surface">
+<div>
+<h1 class="font-headline text-headline-sm text-primary tracking-tight">Editor Configuration</h1>
+<p class="text-xs text-on-surface-variant font-custom-mono">path: .config/vibing/config.toml</p>
+</div>
+<div class="flex gap-3">
+<button class="bg-surface-container-high text-on-surface text-xs font-medium px-4 py-2 hover:bg-surface-bright transition-all active:scale-95">
+            Reset to Defaults
+          </button>
+<button class="bg-primary-container text-on-primary-container text-xs font-bold px-4 py-2 hover:shadow-[0_0_15px_rgba(0,227,138,0.3)] transition-all active:scale-95">
+            Save Config
+          </button>
+</div>
+</div>
+<!-- Main Editor Container -->
+<div class="flex-1 flex flex-col px-8 pb-8 overflow-hidden">
+<!-- Config Editor -->
+<div class="flex-1 bg-surface-container-lowest relative group border border-outline-variant/10">
+<div class="absolute top-0 left-0 w-1 h-full bg-primary-fixed/20 group-hover:bg-primary-fixed transition-colors"></div>
+<div class="flex h-full font-custom-mono text-sm leading-relaxed overflow-hidden">
+<!-- Line Numbers -->
+<div class="w-12 bg-surface-container-lowest text-right pr-3 py-4 text-outline-variant select-none border-r border-outline-variant/10 text-[11px]">
+              1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15
+            </div>
+<!-- Editor Content -->
+<div class="flex-1 py-4 px-6 overflow-y-auto custom-scrollbar">
+<span class="text-tertiary-fixed-dim">[editor]</span><br/>
+<span class="text-secondary-fixed">theme</span> = <span class="text-primary-fixed-dim">"kinetic-ink-dark"</span><br/>
+<span class="text-secondary-fixed">font_family</span> = <span class="text-primary-fixed-dim">"JetBrains Mono"</span><br/>
+<span class="text-secondary-fixed">font_size</span> = <span class="text-tertiary-fixed">14</span><br/>
+<span class="text-secondary-fixed">line_height</span> = <span class="text-tertiary-fixed">1.6</span><br/>
+<span class="text-secondary-fixed">cursor_blink</span> = <span class="text-tertiary-fixed">true</span><br/>
+<br/>
+<span class="text-tertiary-fixed-dim">[editor.ui]</span><br/>
+<span class="text-secondary-fixed">show_line_numbers</span> = <span class="text-tertiary-fixed">true</span><br/>
+<span class="text-secondary-fixed">minimap_enabled</span> = <span class="text-tertiary-fixed">false</span><br/>
+<span class="text-secondary-fixed">glassmorphism</span> = <span class="text-tertiary-fixed">0.6</span><br/>
+<span class="text-secondary-fixed">accent_color</span> = <span class="text-primary-fixed-dim">"#56ffa7"</span><br/>
+<br/>
+<span class="text-tertiary-fixed-dim">[agents.autocomplete]</span><br/>
+<span class="text-secondary-fixed">enabled</span> = <span class="text-tertiary-fixed">true</span><br/>
+<span class="text-secondary-fixed">provider</span> = <span class="text-primary-fixed-dim">"vibing-core-v2"</span><br/>
+<span class="text-secondary-fixed">max_tokens</span> = <span class="text-tertiary-fixed">2048</span>
+</div>
+</div>
+</div>
+<!-- Logs Section -->
+<div class="mt-6 h-48 bg-surface-container-lowest border border-outline-variant/10 flex flex-col">
+<div class="flex items-center justify-between px-4 py-2 bg-surface-container-low border-b border-outline-variant/10">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm text-secondary-fixed">list_alt</span>
+<span class="font-label text-[10px] uppercase font-bold tracking-widest text-on-surface-variant">debug.log</span>
+</div>
+<div class="flex gap-4">
+<span class="text-[10px] font-custom-mono text-on-surface-variant/50">LEVEL: ALL</span>
+<span class="text-[10px] font-custom-mono text-primary-fixed cursor-pointer">CLEAR</span>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto p-4 font-custom-mono text-[11px] custom-scrollbar">
+<div class="flex gap-4 mb-1">
+<span class="text-outline-variant">[2023-11-24 14:22:01]</span>
+<span class="text-secondary-fixed">INFO</span>
+<span class="text-on-surface/80">VibingIDE core-service initialized successfully.</span>
+</div>
+<div class="flex gap-4 mb-1">
+<span class="text-outline-variant">[2023-11-24 14:22:05]</span>
+<span class="text-tertiary-fixed">WARN</span>
+<span class="text-on-surface/80">Plugin 'legacy-git' failed to load: incompatible API version.</span>
+</div>
+<div class="flex gap-4 mb-1">
+<span class="text-outline-variant">[2023-11-24 14:23:12]</span>
+<span class="text-secondary-fixed">INFO</span>
+<span class="text-on-surface/80">Connecting to vibing-core-v2 at 127.0.0.1:8080...</span>
+</div>
+<div class="flex gap-4 mb-1 text-primary-fixed-dim">
+<span class="text-outline-variant">[2023-11-24 14:23:15]</span>
+<span class="text-primary-fixed-dim">SUCCESS</span>
+<span class="text-on-surface/80">Agent bridge established. Syncing config to cloud...</span>
+</div>
+<div class="flex gap-4 mb-1">
+<span class="text-outline-variant">[2023-11-24 14:25:44]</span>
+<span class="text-secondary-fixed">INFO</span>
+<span class="text-on-surface/80">File system watcher active on 12 modules.</span>
+</div>
+<div class="flex gap-4">
+<span class="text-outline-variant">[2023-11-24 14:28:02]</span>
+<span class="text-secondary-fixed">INFO</span>
+<span class="text-on-surface/80">User initiated 'config.toml' update request.</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer Shell -->
+<footer class="fixed bottom-0 w-full flex justify-between items-center px-4 z-30 hidden md:flex h-6 bg-[#0e0e0e] text-[#b7eaff] font-['JetBrains_Mono'] text-[11px] bg-[#1c1b1b]">
+<div class="flex items-center gap-4">
+<span class="hover:text-[#56ffa7] transition-colors cursor-pointer">main</span>
+<span class="flex items-center gap-1.5 hover:text-[#56ffa7] transition-colors cursor-pointer">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary-fixed"></span> Agent: Idle
+      </span>
+</div>
+<div class="flex items-center gap-4 opacity-70">
+<span class="hover:text-[#56ffa7] transition-colors cursor-pointer">UTF-8</span>
+<span class="hover:text-[#56ffa7] transition-colors cursor-pointer">LN 12, COL 4</span>
+<span class="text-[#56ffa7]">v1.0.4-stable</span>
+</div>
+</footer>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="fixed bottom-0 w-full flex justify-around items-center z-50 md:hidden bg-[#0e0e0e] h-14 border-t-2 border-[#1c1b1b]">
+<div class="flex flex-col items-center justify-center text-[#e5e2e1] opacity-60">
+<span class="material-symbols-outlined">code</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-widest">Editor</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#56ffa7] border-t-2 border-[#56ffa7] -mt-[2px]">
+<span class="material-symbols-outlined">terminal</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-widest">Agents</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#e5e2e1] opacity-60">
+<span class="material-symbols-outlined">description</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-widest">Files</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#e5e2e1] opacity-60">
+<span class="material-symbols-outlined">list_alt</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-widest">Logs</span>
+</div>
+</nav>
+</body></html>

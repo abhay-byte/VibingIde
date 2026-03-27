@@ -6,7 +6,7 @@
 //! - PTY size is validated before passing to the kernel.
 //! - No `unsafe` code in this module; all unsafe is inside `portable-pty`.
 
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -211,7 +211,7 @@ fn apply_env_allowlist(cmd: &mut CommandBuilder, env_allowlist: &[String]) {
     }
 }
 
-fn build_launch_spec(command: &str, args: &[String], _cwd: &Path) -> LaunchSpec {
+fn build_launch_spec(command: &str, args: &[String], cwd: &Path) -> LaunchSpec {
     #[cfg(windows)]
     {
         return build_windows_launch_spec(command, args, cwd);

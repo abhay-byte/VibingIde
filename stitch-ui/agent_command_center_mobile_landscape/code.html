@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-primary-fixed-variant": "#00522f",
+                        "on-tertiary": "#482900",
+                        "on-secondary-container": "#00566b",
+                        "on-primary-fixed": "#002110",
+                        "on-primary": "#00391f",
+                        "outline-variant": "#3b4b3f",
+                        "on-secondary": "#003543",
+                        "secondary": "#a6e6ff",
+                        "on-tertiary-container": "#8e5500",
+                        "secondary-fixed-dim": "#4cd6ff",
+                        "on-error": "#690005",
+                        "background": "#131313",
+                        "inverse-surface": "#e5e2e1",
+                        "on-background": "#e5e2e1",
+                        "inverse-primary": "#006d40",
+                        "on-error-container": "#ffdad6",
+                        "surface-container-lowest": "#0e0e0e",
+                        "outline": "#849587",
+                        "on-primary-container": "#007142",
+                        "surface-container-highest": "#353534",
+                        "primary-fixed-dim": "#00e38a",
+                        "error-container": "#93000a",
+                        "primary-container": "#00ff9c",
+                        "secondary-fixed": "#b7eaff",
+                        "on-tertiary-fixed": "#2c1700",
+                        "tertiary-fixed": "#ffdcbb",
+                        "inverse-on-surface": "#313030",
+                        "surface-container": "#201f1f",
+                        "primary-fixed": "#56ffa7",
+                        "tertiary": "#fffbff",
+                        "on-tertiary-fixed-variant": "#673d00",
+                        "surface-container-high": "#2a2a2a",
+                        "surface": "#131313",
+                        "surface-tint": "#00e38a",
+                        "surface-bright": "#393939",
+                        "tertiary-container": "#ffd9b4",
+                        "error": "#ffb4ab",
+                        "tertiary-fixed-dim": "#ffb869",
+                        "on-secondary-fixed-variant": "#004e60",
+                        "surface-variant": "#353534",
+                        "on-secondary-fixed": "#001f28",
+                        "secondary-container": "#14d1ff",
+                        "on-surface-variant": "#b9cbbc",
+                        "primary": "#f3fff3",
+                        "surface-container-low": "#1c1b1b",
+                        "surface-dim": "#131313",
+                        "on-surface": "#e5e2e1"
+                    },
+                    fontFamily: {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Inter"],
+                        "label": ["Inter"],
+                        "mono": ["JetBrains Mono"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        body {
+            background-color: #131313;
+            color: #e5e2e1;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #0e0e0e;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #3b4b3f;
+        }
+        .glass-panel {
+            background: rgba(53, 53, 52, 0.6);
+            backdrop-filter: blur(20px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="h-screen w-screen flex flex-col">
+<!-- TopAppBar Component -->
+<header class="fixed top-0 w-full flex justify-between items-center px-6 h-12 z-40 bg-[#131313]/60 backdrop-blur-xl border-b border-[#3b4b3f]/15 shadow-[0_0_40px_rgba(0,227,138,0.04)]">
+<div class="flex items-center gap-4 flex-1">
+<span class="font-['Space_Grotesk'] font-bold text-[#56ffa7] text-lg tracking-tight">VibingIDE</span>
+<!-- Command Palette Style Search -->
+<div class="relative w-full max-w-md hidden sm:block">
+<div class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-sm opacity-50">search</span>
+</div>
+<input class="w-full bg-surface-container-highest/50 border-none h-8 pl-10 pr-4 text-xs font-mono rounded-sm focus:ring-1 focus:ring-primary-fixed-dim transition-all" placeholder="Execute command or search agents..." type="text"/>
+<div class="absolute inset-y-0 right-3 flex items-center pointer-events-none">
+<span class="text-[10px] opacity-30 font-mono">⌘K</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex gap-2 mr-4 border-r border-outline-variant/30 pr-4">
+<button class="bg-error/10 text-error px-3 h-7 text-[10px] font-bold uppercase tracking-wider hover:bg-error/20 transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">stop_circle</span> Stop All
+                </button>
+<button class="bg-surface-container-highest text-on-surface px-3 h-7 text-[10px] font-bold uppercase tracking-wider hover:bg-surface-bright transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">refresh</span> Restart
+                </button>
+</div>
+<span class="material-symbols-outlined text-[#56ffa7] cursor-pointer active:opacity-70">terminal</span>
+<span class="material-symbols-outlined text-[#56ffa7] cursor-pointer active:opacity-70">bolt</span>
+<span class="material-symbols-outlined text-[#e5e2e1] cursor-pointer active:opacity-70">more_vert</span>
+</div>
+</header>
+<!-- SideNavBar (Rail) -->
+<nav class="fixed left-0 top-0 h-full flex flex-col items-center py-4 z-50 bg-[#131313] w-16 border-r border-outline-variant/10">
+<div class="mb-8">
+<span class="material-symbols-outlined text-[#56ffa7] font-bold text-2xl">smart_toy</span>
+</div>
+<div class="flex flex-col gap-6 flex-1">
+<div class="group relative">
+<span class="material-symbols-outlined text-[#e5e2e1] opacity-50 hover:opacity-100 transition-all cursor-pointer">folder_open</span>
+</div>
+<div class="group relative text-[#56ffa7] border-l-2 border-[#56ffa7] bg-[#1c1b1b] py-2 w-16 flex justify-center -ml-0">
+<span class="material-symbols-outlined">smart_toy</span>
+</div>
+<div class="group relative">
+<span class="material-symbols-outlined text-[#e5e2e1] opacity-50 hover:opacity-100 transition-all cursor-pointer">search</span>
+</div>
+<div class="group relative">
+<span class="material-symbols-outlined text-[#e5e2e1] opacity-50 hover:opacity-100 transition-all cursor-pointer">settings</span>
+</div>
+</div>
+<div class="mt-auto">
+<span class="material-symbols-outlined text-[#e5e2e1] opacity-50 hover:opacity-100 transition-all cursor-pointer">account_circle</span>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 ml-16 mt-12 flex flex-row overflow-hidden bg-surface">
+<!-- Left Sidebar: Agent Sessions -->
+<aside class="w-72 bg-surface-container-lowest border-r border-outline-variant/10 flex flex-col shrink-0">
+<div class="p-4 flex justify-between items-center border-b border-outline-variant/5">
+<h2 class="font-headline text-xs font-bold uppercase tracking-widest text-primary-fixed-dim">Active Agents</h2>
+<button class="w-6 h-6 flex items-center justify-center bg-primary-container text-on-primary-container rounded-sm hover:scale-105 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-sm">add</span>
+</button>
+</div>
+<div class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2">
+<!-- Agent Item Active -->
+<div class="bg-surface-container-low border-l-2 border-primary-fixed-dim p-3 cursor-pointer group">
+<div class="flex justify-between items-start mb-1">
+<span class="text-xs font-mono font-bold text-primary-fixed-dim">GPT-4o_DEBUGGER</span>
+<div class="flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-fixed-dim animate-pulse"></span>
+<span class="text-[9px] uppercase font-bold text-primary-fixed-dim">Active</span>
+</div>
+</div>
+<p class="text-[10px] text-on-surface-variant line-clamp-1 mb-2">Analyzing heap overflow in module-v2...</p>
+<div class="flex justify-between items-center text-[9px] font-mono opacity-50">
+<span>UPTIME: 02:45:12</span>
+<span>MEM: 124MB</span>
+</div>
+</div>
+<!-- Agent Item Idle -->
+<div class="hover:bg-surface-container-low p-3 cursor-pointer transition-colors border-l-2 border-transparent">
+<div class="flex justify-between items-start mb-1">
+<span class="text-xs font-mono font-bold text-secondary-fixed">CLAUDE_CODER</span>
+<div class="flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary-fixed"></span>
+<span class="text-[9px] uppercase font-bold text-secondary-fixed">Idle</span>
+</div>
+</div>
+<p class="text-[10px] text-on-surface-variant line-clamp-1 mb-2">Awaiting next deployment task.</p>
+<div class="flex justify-between items-center text-[9px] font-mono opacity-50">
+<span>UPTIME: 08:12:01</span>
+<span>MEM: 64MB</span>
+</div>
+</div>
+<!-- Agent Item Warning -->
+<div class="hover:bg-surface-container-low p-3 cursor-pointer transition-colors border-l-2 border-transparent">
+<div class="flex justify-between items-start mb-1">
+<span class="text-xs font-mono font-bold text-tertiary-fixed">AUTO_DOCS</span>
+<div class="flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary-fixed"></span>
+<span class="text-[9px] uppercase font-bold text-tertiary-fixed">Review</span>
+</div>
+</div>
+<p class="text-[10px] text-on-surface-variant line-clamp-1 mb-2">Schema mismatch detected in api.yaml</p>
+<div class="flex justify-between items-center text-[9px] font-mono opacity-50">
+<span>UPTIME: 00:15:33</span>
+<span>MEM: 42MB</span>
+</div>
+</div>
+<!-- Agent Item Stopped -->
+<div class="opacity-40 hover:opacity-100 hover:bg-surface-container-low p-3 cursor-pointer transition-all border-l-2 border-transparent">
+<div class="flex justify-between items-start mb-1">
+<span class="text-xs font-mono font-bold">LAMA_70B_PROD</span>
+<div class="flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-outline"></span>
+<span class="text-[9px] uppercase font-bold">Offline</span>
+</div>
+</div>
+<p class="text-[10px] text-on-surface-variant line-clamp-1 mb-2">Session terminated by system.</p>
+<div class="flex justify-between items-center text-[9px] font-mono opacity-50">
+<span>LAST: 2d ago</span>
+<span>ID: 9821-X</span>
+</div>
+</div>
+</div>
+</aside>
+<!-- Right Sidebar: Detailed View & Terminal -->
+<section class="flex-1 flex flex-col bg-surface relative">
+<!-- Header for Selected Agent -->
+<div class="h-10 px-4 flex justify-between items-center bg-surface-container-low/50 border-b border-outline-variant/10">
+<div class="flex items-center gap-3">
+<span class="text-xs font-bold font-mono text-primary-fixed-dim">SESSION: GPT-4o_DEBUGGER</span>
+<span class="text-[10px] px-2 py-0.5 bg-primary-fixed/10 text-primary-fixed rounded-full border border-primary-fixed/20">v4.2-stable</span>
+</div>
+<div class="flex gap-4">
+<span class="material-symbols-outlined text-sm opacity-50 hover:opacity-100 cursor-pointer">settings</span>
+<span class="material-symbols-outlined text-sm opacity-50 hover:opacity-100 cursor-pointer">download</span>
+<span class="material-symbols-outlined text-sm text-error opacity-70 hover:opacity-100 cursor-pointer">close</span>
+</div>
+</div>
+<!-- ANSI Log View -->
+<div class="flex-1 overflow-y-auto custom-scrollbar bg-surface-container-lowest p-6 font-mono text-[13px] leading-relaxed selection:bg-primary-fixed/30">
+<div class="space-y-1">
+<div class="flex gap-4">
+<span class="text-outline text-right w-12 shrink-0 select-none">12:44</span>
+<span class="text-secondary-fixed">[system]</span>
+<span class="text-on-surface">Initializing agent environment...</span>
+</div>
+<div class="flex gap-4">
+<span class="text-outline text-right w-12 shrink-0 select-none">12:44</span>
+<span class="text-secondary-fixed">[system]</span>
+<span class="text-on-surface">Mounting file system at /mnt/workspace</span>
+</div>
+<div class="flex gap-4">
+<span class="text-outline text-right w-12 shrink-0 select-none">12:45</span>
+<span class="text-primary-fixed-dim">[agent]</span>
+<span class="text-primary-fixed">Starting trace on process ID 14201</span>
+</div>
+<div class="flex gap-4">
+<span class="text-outline text-right w-12 shrink-0 select-none">12:45</span>
+<span class="text-primary-fixed-dim">[agent]</span>
+<span class="text-on-surface-variant italic">// Hooking into memory addresses 0x7ffd...</span>
+</div>
+<div class="flex gap-4 pt-2">
+<span class="text-outline text-right w-12 shrink-0 select-none">12:45</span>
+<span class="bg-primary-fixed-dim text-on-primary-container px-1 font-bold">INFO</span>
+<span class="text-primary-fixed-dim">Pattern match found in /src/utils/heap.c:242</span>
+</div>
+<div class="ml-16 mt-2 p-3 bg-surface-container/50 border border-outline-variant/10 rounded-sm">
+<code class="text-tertiary-fixed-dim">
+                            void *ptr = malloc(size);<br/>
+                            memcpy(ptr, input, strlen(input)); // Potential buffer overflow
+                        </code>
+</div>
+<div class="flex gap-4 mt-4">
+<span class="text-outline text-right w-12 shrink-0 select-none">12:46</span>
+<span class="text-primary-fixed-dim">[agent]</span>
+<span class="text-on-surface">Attempting to generate patch for heap.c...</span>
+</div>
+<div class="flex gap-4">
+<span class="text-outline text-right w-12 shrink-0 select-none">12:46</span>
+<span class="text-primary-fixed-dim">[agent]</span>
+<span class="text-on-surface">Awaiting user confirmation to apply patch.</span>
+</div>
+<!-- Typing Indicator -->
+<div class="flex gap-4 mt-2">
+<span class="text-outline text-right w-12 shrink-0 select-none">12:46</span>
+<span class="text-primary-fixed-dim animate-pulse">█</span>
+</div>
+</div>
+</div>
+<!-- Large Command Input -->
+<div class="h-16 bg-surface-container-high border-t border-primary-fixed-dim/20 px-4 flex items-center gap-3">
+<span class="material-symbols-outlined text-primary-fixed-dim">terminal</span>
+<input class="flex-1 bg-transparent border-none text-sm font-mono focus:ring-0 placeholder:opacity-30" placeholder="Send instruction to agent... (e.g. 'Fix the overflow and rebuild')" type="text"/>
+<div class="flex gap-2">
+<button class="w-10 h-10 flex items-center justify-center bg-primary-fixed-dim text-on-primary-fixed hover:brightness-110 active:scale-95 transition-all">
+<span class="material-symbols-outlined">send</span>
+</button>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer Component -->
+<footer class="fixed bottom-0 w-full flex justify-between items-center px-4 h-6 z-30 bg-[#0e0e0e] border-t-2 border-[#1c1b1b] hidden md:flex">
+<div class="flex items-center gap-4">
+<span class="font-['JetBrains_Mono'] text-[11px] text-[#e5e2e1] opacity-70 hover:text-[#56ffa7] cursor-pointer transition-colors">main</span>
+<span class="font-['JetBrains_Mono'] text-[11px] text-[#56ffa7]">● Agent: Busy (Debugging)</span>
+</div>
+<div class="flex items-center gap-6">
+<span class="font-['JetBrains_Mono'] text-[11px] text-[#e5e2e1] opacity-70">UTF-8</span>
+<span class="font-['JetBrains_Mono'] text-[11px] text-[#e5e2e1] opacity-70">LN 242, COL 12</span>
+<span class="font-['JetBrains_Mono'] text-[11px] text-[#b7eaff]">v1.0.4-stable</span>
+</div>
+</footer>
+<!-- BottomNavBar for Mobile View (Hidden in desktop) -->
+<nav class="fixed bottom-0 w-full flex justify-around items-center z-50 md:hidden h-14 bg-[#0e0e0e] border-t-2 border-[#1c1b1b]">
+<div class="flex flex-col items-center justify-center text-[#e5e2e1] opacity-60">
+<span class="material-symbols-outlined">code</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-widest">Editor</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#56ffa7] border-t-2 border-[#56ffa7] -mt-[2px]">
+<span class="material-symbols-outlined">terminal</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-widest">Agents</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#e5e2e1] opacity-60">
+<span class="material-symbols-outlined">description</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-widest">Files</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#e5e2e1] opacity-60">
+<span class="material-symbols-outlined">list_alt</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-widest">Logs</span>
+</div>
+</nav>
+<!-- Floating UI elements for 'Hacker Chic' -->
+<div class="fixed top-20 right-8 pointer-events-none opacity-20">
+<div class="p-4 border border-outline-variant/30 rounded-lg">
+<div class="text-[8px] font-mono mb-2">SYSTEM_METRICS</div>
+<div class="flex gap-1 h-8 items-end">
+<div class="w-1 bg-primary-fixed-dim h-4"></div>
+<div class="w-1 bg-primary-fixed-dim h-6"></div>
+<div class="w-1 bg-primary-fixed-dim h-5"></div>
+<div class="w-1 bg-primary-fixed-dim h-8"></div>
+<div class="w-1 bg-primary-fixed-dim h-3"></div>
+<div class="w-1 bg-primary-fixed-dim h-7"></div>
+</div>
+</div>
+</div>
+</body></html>

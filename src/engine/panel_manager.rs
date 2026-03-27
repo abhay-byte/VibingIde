@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use portable_pty::PtySize;
 use tokio::{runtime::Handle, sync::mpsc};
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::pty::ansi::AnsiParser;
 use crate::pty::supervisor::{PanelId, PtyEvent, Supervisor};
@@ -259,7 +259,9 @@ impl PanelManager {
         let rows = rows.max(2);
         if let Some(idx) = self.panel_index(panel_id) {
             if let Some(panel) = self.panels.get_mut(idx) {
-                if panel.terminal.size() != (cols, rows) {
+                let old_size = panel.terminal.size();
+                if old_size != (cols, rows) {
+                    debug!(panel_id, ?old_size, new_size = ?(cols, rows), "Resizing terminal");
                     panel.terminal.resize(rows, cols);
                 }
             }

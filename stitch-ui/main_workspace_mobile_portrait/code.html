@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-primary-fixed-variant": "#00522f",
+              "on-tertiary": "#482900",
+              "on-secondary-container": "#00566b",
+              "on-primary-fixed": "#002110",
+              "on-primary": "#00391f",
+              "outline-variant": "#3b4b3f",
+              "on-secondary": "#003543",
+              "secondary": "#a6e6ff",
+              "on-tertiary-container": "#8e5500",
+              "secondary-fixed-dim": "#4cd6ff",
+              "on-error": "#690005",
+              "background": "#131313",
+              "inverse-surface": "#e5e2e1",
+              "on-background": "#e5e2e1",
+              "inverse-primary": "#006d40",
+              "on-error-container": "#ffdad6",
+              "surface-container-lowest": "#0e0e0e",
+              "outline": "#849587",
+              "on-primary-container": "#007142",
+              "surface-container-highest": "#353534",
+              "primary-fixed-dim": "#00e38a",
+              "error-container": "#93000a",
+              "primary-container": "#00ff9c",
+              "secondary-fixed": "#b7eaff",
+              "on-tertiary-fixed": "#2c1700",
+              "tertiary-fixed": "#ffdcbb",
+              "inverse-on-surface": "#313030",
+              "surface-container": "#201f1f",
+              "primary-fixed": "#56ffa7",
+              "tertiary": "#fffbff",
+              "on-tertiary-fixed-variant": "#673d00",
+              "surface-container-high": "#2a2a2a",
+              "surface": "#131313",
+              "surface-tint": "#00e38a",
+              "surface-bright": "#393939",
+              "tertiary-container": "#ffd9b4",
+              "error": "#ffb4ab",
+              "tertiary-fixed-dim": "#ffb869",
+              "on-secondary-fixed-variant": "#004e60",
+              "surface-variant": "#353534",
+              "on-secondary-fixed": "#001f28",
+              "secondary-container": "#14d1ff",
+              "on-surface-variant": "#b9cbbc",
+              "primary": "#f3fff3",
+              "surface-container-low": "#1c1b1b",
+              "surface-dim": "#131313",
+              "on-surface": "#e5e2e1"
+            },
+            fontFamily: {
+              "headline": ["Space Grotesk"],
+              "body": ["Inter"],
+              "label": ["Inter"],
+              "custom-mono": ["JetBrains Mono"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        .code-syntax-keyword { color: #56ffa7; }
+        .code-syntax-string { color: #ffdcbb; }
+        .code-syntax-comment { color: #849587; }
+        .code-syntax-function { color: #b7eaff; }
+        
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #3b4b3f; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-body selection:bg-primary-fixed-dim selection:text-on-primary-fixed overflow-hidden">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full flex justify-between items-center px-6 h-12 z-40 bg-[#131313]/60 backdrop-blur-xl border-b border-[#3b4b3f]/15 shadow-[0_0_40px_rgba(0,227,138,0.04)] font-['Inter'] text-sm">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-[#56ffa7] cursor-pointer active:opacity-70">search</span>
+<span class="font-['Space_Grotesk'] font-bold text-[#56ffa7]">VibingIDE</span>
+</div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-[#e5e2e1] cursor-pointer active:opacity-70">terminal</span>
+<span class="material-symbols-outlined text-[#e5e2e1] cursor-pointer active:opacity-70">bolt</span>
+<span class="material-symbols-outlined text-[#e5e2e1] cursor-pointer active:opacity-70">more_vert</span>
+</div>
+</header>
+<main class="pt-12 pb-14 h-screen flex flex-col overflow-hidden">
+<!-- Top Section: Code Editor -->
+<section class="flex-1 min-h-[353px] bg-surface relative overflow-hidden flex flex-col">
+<!-- Editor Tabs -->
+<div class="flex bg-surface-container-lowest h-9 items-center px-4 gap-4 overflow-x-auto no-scrollbar">
+<div class="flex items-center gap-2 border-b-2 border-primary-fixed h-full px-2">
+<span class="material-symbols-outlined text-xs text-primary-fixed">description</span>
+<span class="text-xs font-medium text-primary-fixed whitespace-nowrap">main.py</span>
+</div>
+<div class="flex items-center gap-2 h-full px-2 opacity-50">
+<span class="material-symbols-outlined text-xs">settings</span>
+<span class="text-xs font-medium whitespace-nowrap">config.json</span>
+</div>
+</div>
+<!-- Code Content -->
+<div class="flex-1 overflow-auto p-4 font-custom-mono text-sm leading-relaxed bg-surface">
+<div class="flex gap-4">
+<div class="text-outline/40 text-right select-none text-[10px] pt-1">
+                        1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14
+                    </div>
+<div class="flex-1">
+<div><span class="code-syntax-keyword">import</span> os</div>
+<div><span class="code-syntax-keyword">from</span> typing <span class="code-syntax-keyword">import</span> Optional</div>
+<div class="h-4"></div>
+<div><span class="code-syntax-keyword">class</span> <span class="code-syntax-function">VibingAgent</span>:</div>
+<div class="pl-4"> <span class="code-syntax-keyword">def</span> <span class="code-syntax-function">__init__</span>(self, model_id: str):</div>
+<div class="pl-4">        self.model = model_id</div>
+<div class="pl-4"> <span class="code-syntax-comment"># Initialize the hacker-chic interface</span></div>
+<div class="pl-4">        print(<span class="code-syntax-string">"System online."</span>)</div>
+<div class="h-4"></div>
+<div class="pl-4"> <span class="code-syntax-keyword">async def</span> <span class="code-syntax-function">execute</span>(self, cmd: str):</div>
+<div class="pl-4"> <span class="code-syntax-keyword">return</span> <span class="code-syntax-keyword">await</span> pty.run(cmd)</div>
+<div class="h-4"></div>
+<div class="bg-primary-fixed/5 border-l-2 border-primary-fixed -ml-4 pl-4 w-full">
+<span class="code-syntax-keyword">if</span> __name__ == <span class="code-syntax-string">"__main__"</span>:
+                        </div>
+<div class="pl-4">    agent = VibingAgent(<span class="code-syntax-string">"gpt-4-ultra"</span>)</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Divider / Resizer Indicator -->
+<div class="h-[2px] bg-outline-variant/20 w-full"></div>
+<!-- Center Section: Agent PTY Panel -->
+<section class="h-[397px] bg-surface-container-lowest flex flex-col relative">
+<!-- Panel Header -->
+<div class="flex items-center justify-between px-4 h-8 bg-surface-container-high border-t-2 border-primary-fixed">
+<div class="flex items-center gap-3">
+<span class="flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-fixed shadow-[0_0_8px_rgba(86,255,167,0.8)]"></span>
+<span class="text-[10px] font-bold uppercase tracking-widest text-on-surface">Agent: Active</span>
+</span>
+<span class="text-[10px] font-custom-mono text-outline uppercase tracking-tighter">PTY-Session-04</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-xs text-outline">history</span>
+<span class="material-symbols-outlined text-xs text-outline">close</span>
+</div>
+</div>
+<!-- Terminal Output -->
+<div class="flex-1 overflow-auto p-4 font-custom-mono text-xs text-secondary-fixed/90 bg-[#0e0e0e]">
+<div class="mb-2 flex gap-2">
+<span class="text-primary-fixed">➜</span>
+<span class="text-on-surface">vibing-ide</span>
+<span class="text-tertiary-fixed">git:(main)</span>
+<span class="text-primary-fixed">python main.py</span>
+</div>
+<div class="mb-1 opacity-70">[INFO] Initializing Kinetic Layering...</div>
+<div class="mb-1 opacity-70">[INFO] Applying Ghost Borders to surface_variant...</div>
+<div class="mb-1 text-primary-fixed">System online.</div>
+<div class="mb-4">Agent initialized in 244ms. Ready for instructions.</div>
+<div class="flex gap-2 text-tertiary-fixed-dim">
+<span class="text-tertiary-fixed-dim">⚠</span>
+<span>Warning: Latency detected in sector 7G. Re-routing through proxy.</span>
+</div>
+<div class="mt-4 flex gap-2">
+<span class="text-primary-fixed animate-pulse">█</span>
+<span class="text-on-surface/40">Listening for commands...</span>
+</div>
+</div>
+<!-- CLI Input Box -->
+<div class="p-4 bg-surface-container-lowest border-t border-outline-variant/10">
+<div class="flex items-center bg-surface-container-highest px-3 py-2 rounded-sm ring-1 ring-inset ring-outline-variant/20 focus-within:ring-primary-fixed/50 transition-all shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)]">
+<span class="material-symbols-outlined text-sm text-primary-fixed mr-2">terminal</span>
+<input class="bg-transparent border-none focus:ring-0 text-xs font-custom-mono text-on-surface w-full placeholder:text-outline/40 p-0" placeholder="Ask agent or run command..." type="text"/>
+<span class="material-symbols-outlined text-sm text-primary-fixed cursor-pointer ml-2">send</span>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full flex justify-around items-center z-50 md:hidden bg-[#0e0e0e] h-14 border-t-2 border-[#1c1b1b] font-['Inter'] text-[10px] uppercase tracking-widest">
+<div class="flex flex-col items-center justify-center text-[#e5e2e1] opacity-60 hover:opacity-100 active:scale-95 transition-all">
+<span class="material-symbols-outlined mb-0.5">code</span>
+<span>Editor</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#56ffa7] border-t-2 border-[#56ffa7] -mt-[2px] hover:opacity-100 active:scale-95 transition-all">
+<span class="material-symbols-outlined mb-0.5">terminal</span>
+<span>Agents</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#e5e2e1] opacity-60 hover:opacity-100 active:scale-95 transition-all">
+<span class="material-symbols-outlined mb-0.5">description</span>
+<span>Files</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#e5e2e1] opacity-60 hover:opacity-100 active:scale-95 transition-all">
+<span class="material-symbols-outlined mb-0.5">list_alt</span>
+<span>Logs</span>
+</div>
+</nav>
+<!-- Footer (Hidden on Mobile as per JSON shell_layout) -->
+<footer class="fixed bottom-0 w-full flex justify-between items-center px-4 z-30 hidden md:flex bg-[#0e0e0e] h-6 font-['JetBrains_Mono'] text-[11px] border-t border-outline-variant/10">
+<div class="flex items-center gap-4">
+<span class="text-[#56ffa7]">main</span>
+<span class="text-[#e5e2e1] opacity-70">● Agent: Idle</span>
+</div>
+<div class="flex items-center gap-4">
+<span class="text-[#e5e2e1] opacity-70">UTF-8</span>
+<span class="text-[#e5e2e1] opacity-70">LN 12, COL 4</span>
+<span class="text-[#b7eaff]">v1.0.4-stable</span>
+</div>
+</footer>
+</body></html>
