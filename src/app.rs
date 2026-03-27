@@ -1542,14 +1542,14 @@ impl VibingApp {
                     
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.add_space(8.0);
-                        if ui.add(egui::Button::new(RichText::new(" ✕ ").color(ACCENT_RED).size(14.0)).frame(false)).clicked() {
+                        if ui.add(egui::Button::new(RichText::new(" X ").color(ACCENT_RED).size(14.0)).frame(false)).clicked() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
-                        if ui.add(egui::Button::new(RichText::new(" 🗖 ").color(TEXT_PRIMARY).size(14.0)).frame(false)).clicked() {
+                        if ui.add(egui::Button::new(RichText::new(" O ").color(TEXT_PRIMARY).size(14.0)).frame(false)).clicked() {
                             let is_max = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
                             ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_max));
                         }
-                        if ui.add(egui::Button::new(RichText::new(" 🗕 ").color(TEXT_PRIMARY).size(14.0)).frame(false)).clicked() {
+                        if ui.add(egui::Button::new(RichText::new(" _ ").color(TEXT_PRIMARY).size(14.0)).frame(false)).clicked() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
                         }
                         ui.add_space(24.0);
