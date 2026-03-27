@@ -1,105 +1,76 @@
 # VibingIDE
 
-> **Agent-First IDE. Blazing Fast. Built in Rust.**
+Rust desktop app for running CLI coding agents side by side inside PTY-backed panels.
 
-VibingIDE is a super-lightweight, terminal-native IDE built around the paradigm of AI coding agents. Instead of bolting AI on top of a file editor, VibingIDE makes CLI agent sessions (Claude Code, Codex, OpenCode, Cline, Aider, etc.) the **primary interface** — with a project file tree and per-session conversation history as navigation support.
+## Current Status
 
----
+VibingIDE is no longer in the original Ratatui/TUI planning phase. The repo currently ships a native `egui` / `eframe` GUI with:
 
-## ✨ Key Features
+- multiple agent panels
+- PTY-backed process launch
+- streamed ANSI output rendering
+- per-panel input boxes
+- a Files sidebar
+- a History sidebar that can read existing session metadata
 
-- **Multiple Agent Panels** — Run unlimited CLI AI tools side-by-side in independent PTY panels
-- **Per-Panel Conversation History** — Every session is automatically saved; browse old sessions from the left sidebar
-- **Tool-Agnostic** — Works with any CLI tool: `claude`, `opencode`, `codex`, `cline`, `aider`, or a custom shell script
-- **Zero Bloat** — Pure Rust TUI; < 25 MB binary, < 60 MB RAM, < 250 ms startup
-- **Cross-Platform** — Linux, macOS, Windows 10+ (via ConPTY)
+The app is still early. History persistence is only partially wired, keyboard support is limited, and there is no built-in editor yet.
 
----
+## What Works Today
 
-## 🖼️ Layout
+- Open a project from the current directory, a positional path, or `--project`
+- Launch an initial command with `--cmd`
+- Run multiple CLI tools side by side
+- Send stdin to each running panel
+- View basic ANSI-colored output
+- Load config from `~/.vibingide/config.toml` and `<project>/.vibingide/config.toml`
+- Write logs to `~/.vibingide/debug.log`
 
-```
-┌──────────────┬────────────────────────────────────────────────────────┐
-│              │  ┌──── Agent Panel 1 (claude) ──────────────────────┐  │
-│  📁 Files    │  │  > Working on auth module...                     │  │
-│  (project    │  │  [INPUT BAR]                                     │  │
-│   explorer)  │  └──────────────────────────────────────────────────┘  │
-│              │                                                         │
-│  💬 History  │  ┌──── Agent Panel 2 (opencode) ────────────────────┐  │
-│  (per-panel  │  │  > Refactoring database layer...                 │  │
-│   sessions)  │  │  [INPUT BAR]                                     │  │
-│              │  └──────────────────────────────────────────────────┘  │
-│  [+ Panel]   │  [+ Add Agent Panel]                                   │
-└──────────────┴────────────────────────────────────────────────────────┘
-```
+## Current Limitations
 
----
+- No built-in editor
+- No live file watching
+- No command palette
+- No divider dragging or maximize flow in the active GUI
+- No end-to-end session event persistence yet
+- Command parsing is simple whitespace splitting, so quoted arguments with spaces are not preserved
 
-## 📚 Documentation
-
-| Document | Description |
-|---|---|
-| [specs.md](docs/specs.md) | Full product specification — features, layout, keybindings, performance targets |
-| [architecture.md](docs/architecture.md) | Technical architecture — Rust stack, module tree, data flow, PTY supervision |
-| [data-model.md](docs/data-model.md) | Data model — structs, NDJSON schema, config schema, disk layout |
-| [roadmap.md](docs/roadmap.md) | Development roadmap — 6 milestones from scaffolding to v0.1 release |
-
----
-
-## 🚀 Quick Start (planned)
+## Quick Start
 
 ```bash
-# Install (Linux / macOS)
-curl -fsSL https://get.vibingide.dev | sh
-
-# Open a project directory
-vibingide ~/repos/my-project
-
-# Or specify an agent command to auto-launch
-vibingide ~/repos/my-project --cmd "claude"
+cargo run -- .
+cargo run -- --project . --cmd "codex"
+cargo run -- --project . --cmd "cmd.exe"
 ```
 
----
+CLI arguments currently supported:
 
-## ⌨️ Default Keybindings
+```text
+vibingide [project]
+vibingide --project <dir>
+vibingide --cmd <command>
+vibingide --project <dir> --cmd <command>
+vibingide --help
+vibingide --version
+```
 
-| Action | Key |
-|---|---|
-| New agent panel | `Ctrl+Shift+N` |
-| Next / Prev panel | `Ctrl+]` / `Ctrl+[` |
-| Focus input bar | `Ctrl+I` |
-| Focus file tree | `Ctrl+E` |
-| Focus history | `Ctrl+H` |
-| Maximize panel | `Ctrl+M` |
-| Close panel | `Ctrl+W` |
-| Open project | `Ctrl+O` |
-| Command palette | `Ctrl+P` |
-| Keybind help | `?` |
+## Docs
 
-All keybindings are remappable in `~/.vibingide/config.toml`.
+- [Product snapshot](docs/specs.md)
+- [Architecture](docs/architecture.md)
+- [Data model](docs/data-model.md)
+- [Development status](docs/roadmap.md)
+- [Workflow](workflow.md)
 
----
+## Development
 
-## 🛠️ Tech Stack
+Useful local commands:
 
-| Layer | Choice |
-|---|---|
-| Language | Rust (stable) |
-| TUI | Ratatui + Crossterm |
-| PTY | `portable-pty` crate (ConPTY on Windows) |
-| ANSI parsing | `vte` crate |
-| Async | Tokio |
-| History | NDJSON (serde_json) |
+```bash
+cargo check
+cargo test
+```
 
----
-
-## 📋 Status
-
-**Pre-alpha** — Documentation and architecture phase. Implementation starts at Milestone 0.
-
-See [roadmap.md](docs/roadmap.md) for the full delivery plan.
-
----
+The repo workflow is documented in [workflow.md](workflow.md). Current outstanding work is tracked in [TODO.md](TODO.md), and completed items are recorded in [DONE.md](DONE.md).
 
 ## License
 

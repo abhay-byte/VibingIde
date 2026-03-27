@@ -1,339 +1,150 @@
-# VibingIDE — Technical Architecture
-
-## 1. Technology Stack
-
-| Layer | Technology | Rationale |
-|---|---|---|
-| Language | **Rust (stable)** | Memory safety, zero-cost abstractions, no GC pauses |
-| UI Rendering | **[Ratatui](https://github.com/ratatui-org/ratatui)** | TUI framework; battle-tested, GPU-free, cross-platform |
-| Terminal backend | **Crossterm** | Cross-platform terminal I/O |
-| PTY (Unix) | **`portable-pty`** crate | Spawns processes in a pseudo-terminal |
-| PTY (Windows) | **ConPTY** via `portable-pty` | Windows Console Pseudoconsole API |
-| ANSI parsing | **`vte`** crate | VT100/ANSI escape sequence state machine |
-| Async runtime | **Tokio** | I/O multiplexing across multiple PTY streams |
-| Serialization | **Serde + serde_json** | Session history persistence (NDJSON) |
-| Config | **`toml`** crate | User config file parsing |
-| File watching | **`notify`** crate | Watch project directory for file tree changes |
-
-> **Why TUI over GUI?** A terminal UI keeps the binary < 25 MB, starts instantly, and works over SSH — a common agent-use-case.
-
----
-
-## 2. High-Level Architecture
-
-```mermaid
-graph TB
-    subgraph VibingIDE["VibingIDE Process"]
-        subgraph TUI["TUI Layer (Ratatui)"]
-            LP[Left Panel]
-            RP[Right Panels]
-        end
-
-        subgraph Core["Core Engine"]
-            PM[Panel Manager]
-            SM[Session Manager]
-            PRJ[Project]
-        end
-
-        subgraph PTY["PTY Layer"]
-            SUP1[Supervisor 1\nAgent Panel 1]
-            SUP2[Supervisor 2\nAgent Panel 2]
-            SUPN[Supervisor N\n...]
-        end
-
-        subgraph History["History Store"]
-            NDJSON[(NDJSON Files\n.vibingide/sessions/)]
-            IDX[(index.json)]
-        end
-
-        subgraph Input["Input Handler"]
-            KBD[Keyboard Events\ncrossterm]
-        end
-    end
-
-    subgraph Agents["External CLI Agents"]
-        C1[claude]
-        C2[opencode]
-        CN[any CLI...]
-    end
-
-    KBD -->|AppAction| PM
-    TUI -->|render| Core
-    PM --> SUP1 & SUP2 & SUPN
-    SM --> NDJSON & IDX
-    SUP1 -.->|PTY| C1
-    SUP2 -.->|PTY| C2
-    SUPN -.->|PTY| CN
-    SUP1 & SUP2 & SUPN -->|AppEvent mpsc| Core
-    Core --> TUI
-    SM --> LP
-```
-
----
-
-## 3. Module Structure
-
-```mermaid
-graph LR
-    main["main.rs\nentry point"]
-    app["app.rs\nAppState + event loop"]
-    config["config.rs\nconfig loading"]
-
-    subgraph ui["ui/"]
-        layout["layout.rs"]
-        left["left_panel.rs"]
-        right["right_panel.rs"]
-        agent_ui["agent_panel.rs"]
-        history_ui["history_list.rs"]
-        filetree_ui["file_tree.rs"]
-        keybind_ui["keybind_overlay.rs"]
-    end
-
-    subgraph engine["engine/"]
-        panel_mgr["panel_manager.rs"]
-        session_mgr["session_manager.rs"]
-        project["project.rs"]
-    end
-
-    subgraph pty_mod["pty/"]
-        supervisor["supervisor.rs"]
-        reader["reader.rs"]
-        ansi["ansi.rs"]
-    end
-
-    subgraph history_mod["history/"]
-        store["store.rs"]
-        event["event.rs"]
-    end
-
-    subgraph input_mod["input/"]
-        handler["handler.rs"]
-        keybinds["keybinds.rs"]
-    end
-
-    main --> app
-    app --> config & ui & engine & input_mod
-    engine --> pty_mod & history_mod & project
-    pty_mod --> ansi
-```
-
----
-
-## 4. Core Data Flow
-
-### 4.1 Startup Sequence
-
-```mermaid
-sequenceDiagram
-    participant M as main()
-    participant C as Config
-    participant P as Project
-    participant S as SessionManager
-    participant A as App
-    participant T as TUI Loop
-
-    M->>C: Config::load()
-    C-->>M: AppConfig
-    M->>P: Project::open(path)
-    P-->>M: Project (file tree)
-    M->>S: SessionManager::load(project)
-    S-->>M: Vec<SessionMeta>
-    M->>A: App::new(config, project, sessions)
-    A->>T: run_event_loop()
-    T-->>T: draw @ 60fps + poll events
-```
-
-### 4.2 Adding an Agent Panel
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant IH as InputHandler
-    participant PM as PanelManager
-    participant SUP as Supervisor
-    participant SM as SessionManager
-    participant RT as Tokio Task
-    participant BUF as OutputBuffer
-
-    U->>IH: Ctrl+Shift+N
-    IH->>PM: AppAction::NewPanel(cmd)
-    PM->>SUP: Supervisor::spawn(cmd)
-    Note over SUP: fork child + open PTY<br/>sanitize cmd (no shell injection)
-    SUP-->>PM: PanelId, PID
-    PM->>SM: new_session(panel_id)
-    SM-->>PM: SessionId (ULID)
-    PM->>RT: tokio::spawn(reader_loop)
-    loop PTY Output
-        RT->>BUF: AnsiParser::feed(bytes) → StyledLines
-        RT->>SM: HistoryStore::append(AgentOutput)
-        RT->>PM: AppEvent::PtyOutput (mpsc)
-    end
-```
-
-### 4.3 User Sends Input
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant IH as InputHandler
-    participant HS as HistoryStore
-    participant SUP as Supervisor
-
-    U->>IH: Type text → Enter
-    IH->>HS: append(UserInput { text })
-    IH->>SUP: write_stdin(text + "\n")
-    Note over SUP: write() to PTY master fd
-```
-
-### 4.4 TUI Render Loop
-
-```mermaid
-flowchart TD
-    A[Poll AppEvent mpsc] --> B{Event type?}
-    B -->|PtyOutput| C[Update panel output buffer]
-    B -->|KeyEvent| D[InputHandler → AppAction]
-    B -->|Resize| E[Recalculate layout\n+ pty.resize]
-    B -->|Tick| F[No-op, trigger redraw]
-    B -->|PtyExited| G[Mark panel Crashed/Exited\nFinalize session]
-    C & D & E & F & G --> H[terminal.draw]
-    H --> I[render_left_panel\nfile tree + history]
-    H --> J[render_right_panels\none widget per panel]
-    I & J --> A
-```
-
----
-
-## 5. PTY Supervision
-
-```mermaid
-graph LR
-    subgraph Supervisor
-        MASTER[PTY Master\nReadablePty]
-        SLAVE[PTY Slave]
-        CHILD[Child Process\nCLI Agent]
-        READER[Async Reader\nTokio Task]
-        ANSI[vte Parser\nStyledLines]
-    end
-
-    EVENT[AppEvent::PtyOutput\nmpsc channel]
-
-    SLAVE --> CHILD
-    CHILD -->|stdout/stderr| SLAVE
-    SLAVE --> MASTER
-    MASTER --> READER
-    READER --> ANSI
-    ANSI --> EVENT
-
-    NOTE["Windows: ConPTY via\nportable-pty native_pty_system()\nUnix: openpty(2) + fork/exec"]
-```
-
-**Resize handling:**
-1. `Event::Resize(cols, rows)` from crossterm
-2. App recalculates panel dimensions
-3. `Supervisor::resize(PtySize { rows, cols })` called per panel
-4. SIGWINCH delivered to child automatically (Unix) / ConPTY notified (Windows)
-
----
-
-## 6. Security Model
-
-```mermaid
-graph TD
-    subgraph Threats["Threat Surface"]
-        T1[Command Injection via\nagent cmd input]
-        T2[Path Traversal in\nproject/config paths]
-        T3[Malicious NDJSON\nin history files]
-        T4[Unbounded memory from\nrogue PTY output]
-        T5[Env var leakage\nto child processes]
-    end
-
-    subgraph Mitigations["Mitigations"]
-        M1[execvp-style spawn — no shell\nargs as Vec not string]
-        M2[PathBuf::canonicalize +\nprefix check vs project root]
-        M3[Serde strict deserialization\nskip unknown fields]
-        M4[Ring buffer cap\nmax 10k lines per panel]
-        M5[Explicit env allowlist\nfor child process]
-    end
-
-    T1 --> M1
-    T2 --> M2
-    T3 --> M3
-    T4 --> M4
-    T5 --> M5
-```
-
----
-
-## 7. State Management
-
-All mutable state lives in a single `AppState` struct. Background reader tasks communicate via `mpsc` channels — **no shared `Arc<Mutex<>>`**, eliminating lock contention.
-
-```mermaid
-graph LR
-    subgraph Tasks["Background Tokio Tasks"]
-        R1[Reader Task\nPanel 1]
-        R2[Reader Task\nPanel 2]
-        KT[Keyboard Task]
-        FW[File Watcher Task]
-    end
-
-    CH[mpsc::channel\nAppEvent]
-    MAIN[Main Loop\nAppState ownership]
-
-    R1 & R2 & KT & FW -->|send| CH
-    CH -->|recv| MAIN
-    MAIN -->|mutate| MAIN
-    MAIN -->|render| TUI[Ratatui Terminal]
-```
-
----
-
-## 8. History Storage
-
-Session files live at `<project-root>/.vibingide/sessions/<ULID>.ndjson`.
-
-```mermaid
-graph LR
-    subgraph DiskLayout[".vibingide/"]
-        IDX[index.json\nsession listing]
-        subgraph Sessions["sessions/"]
-            S1["01HT8X3B2...ndjson"]
-            S2["01HT9Y4C3...ndjson"]
-        end
-        CFG[config.toml\nproject overrides]
-    end
-
-    subgraph NDJSON["NDJSON Line Events"]
-        E1["session_start"]
-        E2["user_input"]
-        E3["agent_output"]
-        E4["session_end"]
-    end
-
-    S1 --> E1 & E2 & E3 & E4
-```
-
----
-
-## 9. Build & Release
-
-```toml
-[profile.release]
-opt-level     = 3
-lto           = "fat"
-codegen-units = 1
-strip         = true
-panic         = "abort"
-```
-
-**Cross-compilation targets:**
-
-```mermaid
-graph LR
-    RUST[Rust Source] --> LIN[x86_64-unknown-linux-gnu]
-    RUST --> WIN[x86_64-pc-windows-msvc]
-    RUST --> MAC[x86_64-apple-darwin]
-    RUST --> ARM[aarch64-apple-darwin]
-```
-
-CI: GitHub Actions matrix build + `cargo-nextest`.
+# VibingIDE - Current Architecture
+
+Last reviewed: 2026-03-27
+
+This document describes the architecture that is actually in the repository today. Older drafts described a Ratatui/Crossterm terminal UI; the current implementation is a desktop GUI built with `egui` and `eframe`.
+
+## 1. Stack
+
+| Area | Current choice | Notes |
+| --- | --- | --- |
+| Language | Rust stable | Single binary application |
+| GUI shell | `eframe` + `egui` | Native desktop window, custom chrome |
+| Async/runtime | Tokio | Used for PTY reader tasks |
+| Process isolation | `portable-pty` | PTY-backed child processes, ConPTY on Windows |
+| ANSI parsing | `vte` | Basic color/style parsing into styled cells |
+| Config | `serde` + `toml` | Global and per-project config loading |
+| Persistence | `serde_json` | Session index and NDJSON helpers exist |
+| Logging | `tracing` | Logs written to `~/.vibingide/debug.log` |
+
+Notes:
+
+- `notify` is present in `Cargo.toml` but is not wired into the running app yet.
+- The `ui/` and `input/` folders still contain older TUI-oriented modules and helper code, but the active GUI is rendered directly from [`src/app.rs`](/c:/Users/abhay/repos/VibingIde/src/app.rs).
+
+## 2. Runtime shape
+
+Startup currently flows like this:
+
+1. [`src/main.rs`](/c:/Users/abhay/repos/VibingIde/src/main.rs) parses `--project` and `--cmd`.
+2. The project root is canonicalized and normalized with [`src/path_utils.rs`](/c:/Users/abhay/repos/VibingIde/src/path_utils.rs).
+3. [`src/config.rs`](/c:/Users/abhay/repos/VibingIde/src/config.rs) loads config.
+4. A Tokio runtime is created for PTY background work.
+5. `eframe` launches the native window and constructs `VibingApp`.
+6. [`src/app.rs`](/c:/Users/abhay/repos/VibingIde/src/app.rs) opens the project, loads any existing session index, and optionally spawns the initial agent panel.
+
+## 3. Main components
+
+### `main.rs`
+
+- Sets up logging.
+- Parses CLI arguments.
+- Creates the Tokio runtime.
+- Launches the `eframe` window.
+
+### `app.rs`
+
+`VibingApp` is the active application shell. It owns:
+
+- `Project`
+- `AppConfig`
+- `SessionManager`
+- `PanelManager`
+- `AnsiParser`
+- The PTY event receiver
+- Transient GUI state such as dialogs and sidebar selection
+
+Each `update()` call:
+
+1. Drains PTY events from a Tokio `mpsc::UnboundedReceiver`.
+2. Applies those events to panel state.
+3. Renders the toolbar, sidebar, and agent panels.
+4. Requests another repaint roughly 16 ms later for streaming output.
+
+### `engine/project.rs`
+
+- Scans the project tree at startup.
+- Creates `.vibingide/` and `.vibingide/sessions/`.
+- Skips `.vibingide`.
+- Skips hidden directories.
+- Applies a simple `.gitignore` filename filter.
+- Caps traversal at depth 8 and 500 entries per directory.
+
+This is a snapshot scan, not a live watcher.
+
+### `engine/panel_manager.rs`
+
+- Creates and tracks agent panels.
+- Spawns PTY supervisors.
+- Holds each panel's output ring buffer and input text.
+- Tracks focused panel.
+- Accepts PTY output and exit events.
+
+The panel manager already has methods for focus cycling and PTY resize, but the current GUI only uses a subset of them.
+
+### `pty/supervisor.rs`
+
+- Spawns commands without implicit shell interpolation.
+- Clears the child environment and re-adds an explicit allowlist.
+- Reads PTY output on a blocking task and forwards bytes back to the GUI.
+- Handles Windows command resolution for `.exe`, `.cmd`, `.bat`, and `.ps1`.
+
+### `history/`
+
+- [`src/history/event.rs`](/c:/Users/abhay/repos/VibingIde/src/history/event.rs) defines the NDJSON event schema.
+- [`src/history/store.rs`](/c:/Users/abhay/repos/VibingIde/src/history/store.rs) can open session files, append events, read them back, and load/save `index.json`.
+- [`src/engine/session_manager.rs`](/c:/Users/abhay/repos/VibingIde/src/engine/session_manager.rs) currently only loads existing metadata and generates new session IDs.
+
+Important: history persistence helpers exist, but they are not yet connected to runtime panel creation, user input, PTY output, or panel shutdown.
+
+## 4. Data flow
+
+### Create panel
+
+1. The user opens the "New Agent Panel" dialog or passes `--cmd`.
+2. `app.rs` splits the command string with `split_whitespace()`.
+3. `PanelManager::create_panel()` allocates a panel ID and label.
+4. `Supervisor::spawn()` opens a PTY and launches the process.
+5. The panel is inserted into in-memory state if spawning succeeds.
+
+Current limitation:
+
+- Command parsing is intentionally simple and does not preserve quoted arguments containing spaces.
+
+### PTY output
+
+1. `Supervisor` reads raw bytes from the PTY.
+2. It sends `PtyEvent::Output` over the Tokio channel.
+3. `VibingApp::drain_pty_events()` forwards bytes into `AnsiParser`.
+4. Parsed `StyledLine`s are appended to the panel's ring buffer.
+5. The GUI renders the buffered lines inside a scroll area.
+
+### User input
+
+1. Each panel has its own input field in the GUI.
+2. Clicking "Send" or pressing Enter writes the input to PTY stdin.
+3. The input field is cleared after successful submission.
+
+Current limitation:
+
+- Input is sent to the process, but not yet recorded into session history.
+
+## 5. Security model
+
+Current safeguards in code:
+
+- Project root is canonicalized before use.
+- File-tree traversal skips symlinks that resolve outside the project root.
+- PTY processes are launched with explicit args, not shell-expanded command strings.
+- Child environment variables are filtered through an allowlist.
+- PTY dimensions are clamped before resize/spawn.
+- Config parsing rejects unknown fields.
+- Session-store helpers validate session IDs and restrict writes to the sessions directory.
+
+## 6. Known gaps
+
+- The docs previously claimed a complete TUI architecture. That is no longer true.
+- History recording and replay are incomplete.
+- Config loading is broader than config application. Today, runtime behavior only uses a few config values.
+- Global/project config merge is coarse: if a project config exists, it currently replaces the global config structure instead of merging field-by-field.
+- The GUI does not yet wire up the full keyboard/action system described by older docs and helper modules.

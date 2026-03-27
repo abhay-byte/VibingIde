@@ -1,271 +1,276 @@
-# VibingIDE — Data Model
+# VibingIDE - Current Data Model
 
-## 1. Entity Relationships
+Last reviewed: 2026-03-27
 
-```mermaid
-erDiagram
-    PROJECT ||--o{ SESSION_META : "has many"
-    PROJECT ||--|| PROJECT_CONFIG : "has one"
-    SESSION_META ||--|| AGENT_PANEL : "linked to"
-    AGENT_PANEL ||--o{ HISTORY_EVENT : "records"
-    SESSION_META }o--|| NDJSON_FILE : "stored in"
+This document describes the data structures and on-disk formats that exist in the current codebase. It also calls out where a schema exists but is not yet used end to end.
 
-    PROJECT {
-        PathBuf root_path
-        String  name
-        FileTree file_tree
-        PathBuf sessions_dir
-    }
+## 1. Core runtime structs
 
-    AGENT_PANEL {
-        u32     id
-        String  label
-        String  command
-        String  session_id
-        Enum    status
-        usize   scroll_pos
-        String  input_buf
-        u32     pid
-        DateTime started_at
-    }
+### Project
 
-    SESSION_META {
-        String   session_id
-        String   panel_label
-        String   agent_cmd
-        DateTime started_at
-        DateTime ended_at
-        Enum     status
-        String   first_input
-        usize    message_count
-    }
-
-    HISTORY_EVENT {
-        i64    ts
-        Enum   kind
-        String text
-        i32    exit_code
-    }
-```
-
----
-
-## 2. Core Rust Structs
-
-### 2.1 `Project`
+Source: [`src/engine/project.rs`](/c:/Users/abhay/repos/VibingIde/src/engine/project.rs)
 
 ```rust
 struct Project {
-    root_path:    PathBuf,     // Absolute path — canonicalized on open
-    name:         String,      // Display name (directory basename)
-    file_tree:    FileTree,    // Cached listing, refreshed on change
-    sessions_dir: PathBuf,     // <root>/.vibingide/sessions/
-    config:       ProjectConfig,
+    root: PathBuf,
+    name: String,
+    file_tree: Vec<FileNode>,
+    vibide_dir: PathBuf,
 }
 ```
 
-### 2.2 `AgentPanel`
+Notes:
+
+- `root` is expected to be canonicalized before `Project::open()`.
+- `vibide_dir` is `<project>/.vibingide`.
+- `file_tree` is a startup snapshot, not a live model kept in sync by watchers.
+
+### FileNode
+
+```rust
+struct FileNode {
+    name: String,
+    path: PathBuf,
+    kind: FileKind,
+    children: Vec<FileNode>,
+}
+
+enum FileKind {
+    File,
+    Directory,
+}
+```
+
+Scan limits:
+
+- Maximum depth: `8`
+- Maximum entries per directory: `500`
+- Hidden directories are skipped
+- `.vibingide` is skipped
+- `.gitignore` support is simple filename matching only
+
+### AgentPanel
+
+Source: [`src/engine/panel_manager.rs`](/c:/Users/abhay/repos/VibingIde/src/engine/panel_manager.rs)
 
 ```rust
 struct AgentPanel {
-    id:          PanelId,             // u32 counter
-    label:       String,              // "Claude Code #1"
-    command:     String,              // "claude"
-    args:        Vec<String>,         // CLI args — execvp style, no shell
-    status:      PanelStatus,
-    session_id:  SessionId,           // ULID → links to NDJSON file
-    scroll_pos:  usize,
-    output_buf:  VecDeque<StyledLine>,// Ring buffer, max 10k lines
-    input_buf:   String,
-    pid:         Option<u32>,
-    started_at:  DateTime<Utc>,
-    ended_at:    Option<DateTime<Utc>>,
+    id: u32,
+    label: String,
+    command: String,
+    args: Vec<String>,
+    status: PanelStatus,
+    session_id: String,
+    output_buf: VecDeque<StyledLine>,
+    input_buf: String,
+    scroll_pos: usize,
 }
+```
 
+```rust
 enum PanelStatus {
     Starting,
-    Running,
+    Running { pid: u32 },
     Exited { code: i32 },
     Crashed { signal: Option<i32> },
 }
 ```
 
-### 2.3 `HistoryEvent` (NDJSON line)
+Notes:
+
+- `session_id` is assigned today even though persistence is not yet wired.
+- `output_buf` is capped by `ui.output_buffer_lines`.
+- `scroll_pos` is stored in the struct, but the current egui panel view mostly relies on `ScrollArea`.
+
+### VibingApp
+
+Source: [`src/app.rs`](/c:/Users/abhay/repos/VibingIde/src/app.rs)
 
 ```rust
-#[derive(Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+struct VibingApp {
+    project: Project,
+    config: AppConfig,
+    session_mgr: SessionManager,
+    panel_mgr: PanelManager,
+    ansi_parser: AnsiParser,
+    pty_rx: UnboundedReceiver<PtyEvent>,
+    _rt: Arc<Runtime>,
+    sidebar_view: SidebarView,
+    show_help: bool,
+    show_new_panel_dialog: bool,
+    new_panel_cmd: String,
+    cmd_error: Option<String>,
+}
+```
+
+This is the real top-level app state in the current GUI. Older docs that mention a Ratatui `AppState` no longer match the running application.
+
+## 2. PTY and ANSI data
+
+Source: [`src/pty/ansi.rs`](/c:/Users/abhay/repos/VibingIde/src/pty/ansi.rs)
+
+```rust
+struct StyledLine {
+    cells: Vec<StyledCell>,
+}
+
+struct StyledCell {
+    ch: char,
+    style: CellStyle,
+}
+
+struct CellStyle {
+    fg: Option<Color32>,
+    bg: Option<Color32>,
+    text: TextStyle,
+}
+
+struct TextStyle {
+    bold: bool,
+    italic: bool,
+    underline: bool,
+    dim: bool,
+    strikethrough: bool,
+}
+```
+
+Current ANSI support:
+
+- Plain text
+- Basic SGR styling
+- Standard foreground/background colors
+- Bright foreground colors
+
+Not yet supported:
+
+- Full terminal emulation
+- 256-color and truecolor SGR handling
+- Cursor-addressed screen state
+
+## 3. Session metadata
+
+Source: [`src/history/store.rs`](/c:/Users/abhay/repos/VibingIde/src/history/store.rs)
+
+```rust
+struct SessionMeta {
+    session_id: String,
+    label: String,
+    agent_cmd: String,
+    started_at: String,
+    ended_at: Option<String>,
+    status: SessionStatus,
+    first_input: Option<String>,
+    message_count: usize,
+}
+```
+
+```rust
+enum SessionStatus {
+    Active,
+    Closed,
+    Crashed,
+}
+```
+
+`SessionManager` currently does two things:
+
+- load `index.json` into memory on startup
+- generate new ULID-based session IDs
+
+It does not yet:
+
+- create `SessionMeta` for new panels
+- save `index.json`
+- connect history files to running panels
+
+## 4. History event schema
+
+Source: [`src/history/event.rs`](/c:/Users/abhay/repos/VibingIde/src/history/event.rs)
+
+```rust
 enum HistoryEvent {
-    SessionStart { ts: i64, agent_cmd: String, label: String, cwd: String },
-    UserInput    { ts: i64, text: String },
-    AgentOutput  { ts: i64, text: String },
-    SessionEnd   { ts: i64, exit_code: Option<i32>, signal: Option<i32> },
+    SessionStart { ts, agent_cmd, label, cwd },
+    UserInput { ts, text },
+    AgentOutput { ts, text },
+    SessionEnd { ts, exit_code, signal },
 }
 ```
 
----
+This schema is defined and the NDJSON store can serialize it, but the live application does not currently emit these events.
 
-## 3. AppState & Event Model
+## 5. On-disk layout
 
-```mermaid
-classDiagram
-    class AppState {
-        +Project project
-        +Vec~AgentPanel~ panels
-        +PanelId focused_panel
-        +FocusZone focus_zone
-        +Vec~SessionMeta~ sessions
-        +bool show_keybind_help
-        +f32 layout_split
-    }
+At runtime, opening a project ensures this structure exists:
 
-    class FocusZone {
-        <<enumeration>>
-        LeftTree
-        LeftHistory
-        RightPanel
-        InputBar
-    }
-
-    class AppEvent {
-        <<enumeration>>
-        PtyOutput
-        PtyExited
-        KeyEvent
-        Resize
-        FileTreeChanged
-        Tick
-    }
-
-    class PanelStatus {
-        <<enumeration>>
-        Starting
-        Running
-        Exited
-        Crashed
-    }
-
-    AppState --> FocusZone
-    AppState --> AgentPanel
-    AgentPanel --> PanelStatus
+```text
+<project>/
+  .vibingide/
+    sessions/
 ```
 
-### Event flow (no shared mutex)
+Optional files the current code knows how to read:
 
-```mermaid
-sequenceDiagram
-    participant BG as Background Tasks\n(PTY readers, keyboard, fs watcher)
-    participant CH as mpsc Channel\nAppEvent
-    participant ML as Main Loop\n(owns AppState)
-    participant TUI as Ratatui Terminal
-
-    BG->>CH: send(AppEvent)
-    CH->>ML: recv()
-    ML->>ML: mutate AppState
-    ML->>TUI: terminal.draw(render_fn)
+```text
+<project>/
+  .vibingide/
+    config.toml
+    index.json
+    sessions/
+      <session-id>.ndjson
 ```
 
----
+Global config path:
 
-## 4. File Layout on Disk
-
-```mermaid
-graph TD
-    ROOT["&lt;project-root&gt;/"]
-    VID[".vibingide/"]
-    CFG["config.toml\nproject overrides"]
-    IDX["index.json\nsession listing"]
-    SESS["sessions/"]
-    S1["01HT8X3B...ndjson"]
-    S2["01HT9Y4C...ndjson"]
-
-    HOME["~/.vibingide/"]
-    GCFG["config.toml\nglobal defaults"]
-    REC["recents.json\nrecent projects"]
-
-    ROOT --> VID
-    VID --> CFG & IDX & SESS
-    SESS --> S1 & S2
-
-    HOME --> GCFG & REC
+```text
+~/.vibingide/config.toml
 ```
 
-### `index.json` format
+Log path:
 
-```json
-{
-  "version": 1,
-  "sessions": [
-    {
-      "session_id": "01HT8X3B2HYZK6E8VBXPQ5NRCS",
-      "label": "Claude Code #1",
-      "agent_cmd": "claude",
-      "started_at": "2024-03-24T10:00:00Z",
-      "ended_at":   "2024-03-24T10:45:00Z",
-      "status": "closed",
-      "first_input": "refactor the auth module",
-      "message_count": 42
-    }
-  ]
-}
+```text
+~/.vibingide/debug.log
 ```
 
----
+## 6. Config schema
 
-## 5. Output Buffer Model
-
-```mermaid
-graph LR
-    PTY[PTY Master\nbytes] --> VTE[vte\nparser]
-    VTE --> SL["Vec&lt;StyledCell&gt;\nper line"]
-    SL --> RB["VecDeque&lt;StyledLine&gt;\nring buffer\nmax 10k lines"]
-    RB --> RAT[Ratatui\nSpans → render]
-    RB -->|"pop_front when full"| DEL[discarded]
-```
-
-```rust
-struct StyledLine  { cells: Vec<StyledCell> }
-struct StyledCell  { ch: char, fg: Color, bg: Color, modifiers: Modifiers }
-```
-
----
-
-## 6. Configuration Schema
-
-```mermaid
-graph TD
-    GC["~/.vibingide/config.toml\nglobal defaults"]
-    PC["&lt;root&gt;/.vibingide/config.toml\nproject overrides"]
-    MC["Merged Config\n(project wins)"]
-
-    GC --> MC
-    PC --> MC
-    MC --> APP[AppConfig used at runtime]
-```
+Source: [`src/config.rs`](/c:/Users/abhay/repos/VibingIde/src/config.rs)
 
 ```toml
 [ui]
-theme                   = "dark"
-left_panel_width_pct    = 25
-output_buffer_lines     = 10000
-scroll_speed            = 3
-show_panel_borders      = true
+theme = "dark"
+left_panel_width_pct = 25
+output_buffer_lines = 10000
+scroll_speed = 3
+show_panel_borders = true
+show_status_bar = true
 
 [keybinds]
-new_panel    = "ctrl+shift+n"
-next_panel   = "ctrl+]"
-prev_panel   = "ctrl+["
-focus_input  = "ctrl+i"
-focus_tree   = "ctrl+e"
+new_panel = "ctrl+shift+n"
+next_panel = "ctrl+]"
+prev_panel = "ctrl+["
+focus_input = "ctrl+i"
+focus_tree = "ctrl+e"
 focus_history = "ctrl+h"
 maximize_panel = "ctrl+m"
-close_panel  = "ctrl+w"
+close_panel = "ctrl+w"
+open_project = "ctrl+o"
+command_palette = "ctrl+p"
+scroll_up = "ctrl+u"
+scroll_down = "ctrl+d"
 
 [history]
 max_sessions_per_project = 500
-auto_archive_after_days  = 30
-store_raw_ansi           = false
+auto_archive_after_days = 30
+store_raw_ansi = false
 
 [security]
-child_env_allowlist = ["PATH", "HOME", "TERM", "LANG"]  # explicit passthrough
+child_env_allowlist = ["PATH", "HOME", "TERM", "LANG"]
 ```
+
+Important behavior notes:
+
+- Unknown keys are rejected.
+- `ui.left_panel_width_pct` and `ui.output_buffer_lines` are validated.
+- Runtime currently uses `ui.output_buffer_lines` and `security.child_env_allowlist`.
+- Most keybind and history settings are defined in schema but not yet applied by the egui UI.
+- If a project config file exists, the current merge behavior effectively replaces the global config instead of merging field-by-field.
