@@ -7,6 +7,7 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use sysinfo::System;
 
 use egui::{Color32, Event, FontId, Key, KeyboardShortcut, Modifiers, RichText, Ui, Vec2};
 use serde::{Deserialize, Serialize};
@@ -113,6 +114,10 @@ pub struct VibingApp {
     show_portrait_workspace: bool,
     layout_mode:          LayoutMode,
     current_screen:       AppScreen,
+    pub active_file_path: Option<std::path::PathBuf>,
+    pub active_file_content: String,
+    pub settings_toml_buffer: String,
+    pub sys: sysinfo::System,
 }
 
 fn split_cmdline(s: &str) -> Option<(String, Vec<String>)> {
@@ -142,6 +147,9 @@ impl VibingApp {
             .clamp(MIN_ZOOM, MAX_ZOOM);
         let project     = Project::open(project_root.clone()).expect("open project");
         let session_mgr = SessionManager::load(&project.vibide_dir).unwrap_or_default();
+        let settings_toml_buffer = toml::to_string_pretty(&config).unwrap_or_default();
+        let mut sys = sysinfo::System::new_all();
+        sys.refresh_all();
 
         let (pty_tx, pty_rx) = mpsc::unbounded_channel::<PtyEvent>();
         let mut panel_mgr = PanelManager::new(
@@ -179,6 +187,10 @@ impl VibingApp {
             show_portrait_workspace: persisted_ui.show_portrait_workspace,
             layout_mode: LayoutMode::Wide,
             current_screen: AppScreen::Editor,
+            active_file_path: None,
+            active_file_content: String::new(),
+            settings_toml_buffer,
+            sys,
         }
     }
 
@@ -748,12 +760,17 @@ impl VibingApp {
             });
     }
 
-    fn render_file_tree(&self, ui: &mut Ui) {
+    fn render_file_tree(&mut self, ui: &mut Ui) {
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 ui.add_space(2.0);
-                render_nodes(ui, &self.project.file_tree, 0);
+                if let Some(p) = render_nodes(ui, &self.project.file_tree, 0) {
+                    self.active_file_path = Some(p.clone());
+                    if let Ok(buf) = std::fs::read_to_string(&p) {
+                        self.active_file_content = buf;
+                    }
+                }
             });
     }
 
@@ -1045,6 +1062,8 @@ impl eframe::App for VibingApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // 1. Drain PTY events (non-blocking)
         self.drain_pty_events();
+        self.sys.refresh_cpu_usage();
+        self.sys.refresh_memory();
         self.handle_zoom_shortcuts(ctx);
         self.apply_zoom(ctx);
         let next_layout_mode = layout_mode_for_size_with_hysteresis(
@@ -1340,7 +1359,8 @@ fn tab_button(label: &str, active: bool) -> impl egui::Widget + '_ {
     }
 }
 
-fn render_nodes(ui: &mut Ui, nodes: &[crate::engine::project::FileNode], depth: usize) {
+fn render_nodes(ui: &mut Ui, nodes: &[crate::engine::project::FileNode], depth: usize) -> Option<std::path::PathBuf> {
+    let mut clicked = None;
     for node in nodes {
         let indent = depth as f32 * 14.0;
         ui.horizontal(|ui| {
@@ -1351,14 +1371,20 @@ fn render_nodes(ui: &mut Ui, nodes: &[crate::engine::project::FileNode], depth: 
                 .size(12.5)
                 .color(color);
             let response = ui.add(egui::Label::new(text).sense(egui::Sense::click()));
+            if response.clicked() && !node.is_dir() {
+                clicked = Some(node.path.clone());
+            }
             if response.hovered() {
                 response.on_hover_cursor(egui::CursorIcon::PointingHand);
             }
         });
         if node.is_dir() && !node.children.is_empty() {
-            render_nodes(ui, &node.children, depth + 1);
+            if let Some(p) = render_nodes(ui, &node.children, depth + 1) {
+                clicked = Some(p);
+            }
         }
     }
+    clicked
 }
 
 // Trait extension helper
@@ -1488,7 +1514,7 @@ mod tests {
 
 impl VibingApp {
     fn render_top_app_bar(&mut self, ctx: &egui::Context) {
-        egui::TopBottomPanel::top("top_app_bar")
+        let top_response = egui::TopBottomPanel::top("top_app_bar")
             .exact_height(48.0)
             .frame(egui::Frame::none()
                 .fill(Color32::from_rgba_premultiplied(19, 19, 19, 153)) // #131313/60
@@ -1515,13 +1541,28 @@ impl VibingApp {
                     );
                     
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.add_space(8.0);
+                        if ui.add(egui::Button::new(RichText::new(" ✕ ").color(ACCENT_RED).size(14.0)).frame(false)).clicked() {
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        }
+                        if ui.add(egui::Button::new(RichText::new(" 🗖 ").color(TEXT_PRIMARY).size(14.0)).frame(false)).clicked() {
+                            let is_max = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_max));
+                        }
+                        if ui.add(egui::Button::new(RichText::new(" 🗕 ").color(TEXT_PRIMARY).size(14.0)).frame(false)).clicked() {
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                        }
                         ui.add_space(24.0);
-                        if ui.add(egui::Button::new(RichText::new(" ☰ ").color(TEXT_PRIMARY).size(18.0)).frame(false)).clicked() {}
-                        if ui.add(egui::Button::new(RichText::new(" ⚡ ").color(TEXT_PRIMARY).size(18.0)).frame(false)).clicked() {}
-                        if ui.add(egui::Button::new(RichText::new(" >_ ").color(TEXT_PRIMARY).size(18.0)).frame(false)).clicked() {}
+                        if ui.add(egui::Button::new(RichText::new(" ☰ ").color(TEXT_PRIMARY).size(16.0)).frame(false)).clicked() {}
+                        if ui.add(egui::Button::new(RichText::new(" ⚡ ").color(TEXT_PRIMARY).size(16.0)).frame(false)).clicked() {}
+                        if ui.add(egui::Button::new(RichText::new(" >_ ").color(TEXT_PRIMARY).size(16.0)).frame(false)).clicked() {}
                     });
                 });
             });
+
+        if top_response.response.interact(egui::Sense::drag()).dragged() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
+        }
     }
 
     fn render_side_nav_bar(&mut self, ctx: &egui::Context) {

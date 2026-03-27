@@ -56,6 +56,7 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # Config dirs
 dirs = "5"
+sysinfo = "0.36.1"
 
 [features]
 default = []
