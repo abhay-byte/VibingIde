@@ -57,6 +57,7 @@ chrono = { version = "0.4", features = ["serde"] }
 # Config dirs
 dirs = "5"
 sysinfo = "0.36.1"
+egui-phosphor = "0.5.0"
 
 [features]
 default = []
