@@ -1521,14 +1521,21 @@ impl VibingApp {
             .exact_width(64.0)
             .frame(egui::Frame::none()
                 .fill(BG_PANEL)
-                .stroke(egui::Stroke::new(1.0, BG_SIDEBAR)))
+                .stroke(egui::Stroke::new(1.0, BORDER_COLOR)))
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.add_space(20.0);
-                    ui.label(RichText::new("VIBE").color(ACCENT).size(11.0).strong());
-                    ui.add_space(2.0);
-                    ui.label(RichText::new("V1.0.4").color(TEXT_DIM).size(9.0));
-                    ui.add_space(42.0);
+                    
+                    if self.current_screen == AppScreen::Agents {
+                        ui.label(RichText::new("VIBE").color(ACCENT).size(11.0).strong());
+                        ui.add_space(2.0);
+                        ui.label(RichText::new("V1.0.4").color(TEXT_DIM).size(9.0));
+                        ui.add_space(42.0);
+                    } else {
+                        ui.label(RichText::new("V").color(ACCENT).size(20.0).strong());
+                        ui.add_space(42.0);
+                    }
+                    
                     if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::FOLDER).size(22.0).color(if self.current_screen == AppScreen::Editor { ACCENT } else { TEXT_DIM })).frame(false)).clicked() {
                         self.current_screen = AppScreen::Editor;
                     }
@@ -1536,6 +1543,26 @@ impl VibingApp {
                     if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::ROBOT).size(22.0).color(if self.current_screen == AppScreen::Agents { ACCENT } else { TEXT_DIM })).frame(false)).clicked() {
                         self.current_screen = AppScreen::Agents;
                     }
+                    ui.add_space(24.0);
+                    if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::MAGNIFYING_GLASS).size(20.0).color(TEXT_DIM)).frame(false)).clicked() {}
+                    ui.add_space(24.0);
+                    
+                    if self.current_screen == AppScreen::Settings {
+                        // Draw green left border indicator for settings
+                        if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::GEAR).size(22.0).color(ACCENT)).frame(false)).clicked() {
+                            self.current_screen = AppScreen::Settings;
+                        }
+                    } else {
+                        if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::GEAR).size(22.0).color(TEXT_DIM)).frame(false)).clicked() {
+                            self.current_screen = AppScreen::Settings;
+                        }
+                    }
+                    
+                    ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
+                        ui.add_space(24.0);
+                        if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::USER_CIRCLE).size(22.0).color(TEXT_DIM)).frame(false)).clicked() {}
+                        ui.add_space(24.0);
+                    });
                 });
             });
     }
@@ -1549,93 +1576,135 @@ impl VibingApp {
             .show(ctx, |ui| {
                 ui.horizontal_centered(|ui| {
                     ui.add_space(24.0);
-                    // VIBINGIDE
-                    ui.label(RichText::new("VIBINGIDE")
-                        .color(ACCENT)
-                        .size(18.0)
-                        .strong());
                     
-                    ui.add_space(32.0); // gap before tabs
-                    
-                    // Tabs
-                    let tabs = [
-                        ("Command Center", AppScreen::Agents),
-                        ("Editor", AppScreen::Editor),
-                        ("Infrastructure", AppScreen::Infrastructure),
-                    ];
-                    
-                    for (name, screen) in tabs {
-                        let active = self.current_screen == screen;
-                        let color = if active { ACCENT } else { TEXT_DIM };
-                        let text = RichText::new(name).size(14.0).color(color);
+                    if self.current_screen == AppScreen::Agents {
+                        ui.label(RichText::new("VIBINGIDE").color(ACCENT).size(18.0).strong());
+                        ui.add_space(32.0);
                         
-                        let response = ui.add_sized([0.0, 56.0], egui::Button::new(text).frame(false));
-                        if response.clicked() {
-                            self.current_screen = screen;
-                        }
+                        let tabs = [
+                            ("Command Center", AppScreen::Agents),
+                            ("Editor", AppScreen::Editor),
+                            ("Infrastructure", AppScreen::Infrastructure),
+                        ];
                         
-                        if active {
-                            let rect = response.rect;
-                            ui.painter().rect_filled(
-                                egui::Rect::from_min_max(
-                                    egui::pos2(rect.left(), ui.max_rect().bottom() - 2.0),
-                                    egui::pos2(rect.right(), ui.max_rect().bottom())
-                                ),
-                                0.0,
-                                ACCENT
-                            );
-                        }
-                        ui.add_space(16.0);
-                    }
-                    
-                    // Right aligned section
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.add_space(16.0);
-                        // Window controls (X, [], _)
-                        let ctrl_col = Color32::from_rgb(0, 150, 100);
-                        if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::X).color(ctrl_col).size(16.0)).frame(false)).clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                        }
-                        ui.add_space(8.0);
-                        if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::SQUARE).color(ctrl_col).size(16.0)).frame(false)).clicked() {
-                            let is_max = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_max));
-                        }
-                        ui.add_space(8.0);
-                        if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::MINUS).color(ctrl_col).size(16.0)).frame(false)).clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                        for (name, screen) in tabs {
+                            let active = self.current_screen == screen;
+                            let color = if active { ACCENT } else { TEXT_DIM };
+                            let text = RichText::new(name).size(14.0).color(color);
+                            
+                            let response = ui.add_sized([0.0, 56.0], egui::Button::new(text).frame(false));
+                            if response.clicked() {
+                                self.current_screen = screen;
+                            }
+                            
+                            if active {
+                                let rect = response.rect;
+                                ui.painter().rect_filled(
+                                    egui::Rect::from_min_max(
+                                        egui::pos2(rect.left(), ui.max_rect().bottom() - 2.0),
+                                        egui::pos2(rect.right(), ui.max_rect().bottom())
+                                    ),
+                                    0.0,
+                                    ACCENT
+                                );
+                            }
+                            ui.add_space(16.0);
                         }
                         
-                        ui.add_space(20.0);
-                        // Divider
-                        let (rect, _) = ui.allocate_exact_size(Vec2::new(1.0, 16.0), egui::Sense::hover());
-                        ui.painter().rect_filled(rect, 0.0, BORDER_COLOR);
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.add_space(16.0);
+                            let ctrl_col = Color32::from_rgb(0, 150, 100);
+                            if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::X).color(ctrl_col).size(16.0)).frame(false)).clicked() { ctx.send_viewport_cmd(egui::ViewportCommand::Close); }
+                            ui.add_space(8.0);
+                            if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::SQUARE).color(ctrl_col).size(16.0)).frame(false)).clicked() {
+                                let is_max = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_max));
+                            }
+                            ui.add_space(8.0);
+                            if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::MINUS).color(ctrl_col).size(16.0)).frame(false)).clicked() { ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)); }
+                            
+                            ui.add_space(20.0);
+                            let (rect, _) = ui.allocate_exact_size(Vec2::new(1.0, 16.0), egui::Sense::hover());
+                            ui.painter().rect_filled(rect, 0.0, BORDER_COLOR);
+                            ui.add_space(20.0);
+                            
+                            if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::GEAR).color(TEXT_DIM).size(20.0)).frame(false)).clicked() { self.current_screen = AppScreen::Settings; }
+                            ui.add_space(20.0);
+                            if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::TERMINAL_WINDOW).color(TEXT_DIM).size(20.0)).frame(false)).clicked() { self.current_screen = AppScreen::Editor; }
+                            
+                            ui.add_space(24.0);
+                            let (rect, _) = ui.allocate_exact_size(Vec2::new(260.0, 32.0), egui::Sense::hover());
+                            ui.painter().rect_filled(rect, 4.0, BG_INPUT);
+                            ui.painter().text(rect.left_center() + Vec2::new(12.0, 0.0), egui::Align2::LEFT_CENTER, format!("{} Search commands...", egui_phosphor::regular::MAGNIFYING_GLASS), FontId::proportional(13.0), TEXT_DIM);
+                        });
                         
-                        ui.add_space(20.0);
-                        // Action Icons
-                        if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::GEAR).color(TEXT_DIM).size(20.0)).frame(false)).clicked() {
-                            self.current_screen = AppScreen::Settings;
-                        }
-                        ui.add_space(20.0);
-                        if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::TERMINAL_WINDOW).color(TEXT_DIM).size(20.0)).frame(false)).clicked() {
-                            self.current_screen = AppScreen::Editor;
-                        }
+                    } else if self.current_screen == AppScreen::Editor {
+                        ui.label(RichText::new("VibingIDE").color(ACCENT).size(16.0).strong());
+                        ui.add_space(32.0);
                         
-                        ui.add_space(24.0);
-                        // Search Box
-                        let (rect, _) = ui.allocate_exact_size(Vec2::new(260.0, 32.0), egui::Sense::hover());
+                        let (rect, _) = ui.allocate_exact_size(Vec2::new(300.0, 32.0), egui::Sense::hover());
                         ui.painter().rect_filled(rect, 4.0, BG_INPUT);
-                        
-                        let search_text = format!("{} Search commands...", egui_phosphor::regular::MAGNIFYING_GLASS);
-                        ui.painter().text(
-                            rect.left_center() + Vec2::new(12.0, 0.0),
-                            egui::Align2::LEFT_CENTER,
-                            search_text,
-                            egui::FontId::proportional(13.0),
-                            TEXT_DIM
-                        );
+                        ui.painter().text(rect.left_center() + Vec2::new(12.0, 0.0), egui::Align2::LEFT_CENTER, format!("{} Search components or files...", egui_phosphor::regular::MAGNIFYING_GLASS), FontId::proportional(12.0), TEXT_DIM);
 
-                    });
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.add_space(16.0);
+                            let ctrl_col = TEXT_DIM;
+                            if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::X).color(ctrl_col).size(16.0)).frame(false)).clicked() { ctx.send_viewport_cmd(egui::ViewportCommand::Close); }
+                            ui.add_space(8.0);
+                            if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::SQUARE).color(ctrl_col).size(16.0)).frame(false)).clicked() {
+                                let is_max = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_max));
+                            }
+                            ui.add_space(8.0);
+                            if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::MINUS).color(ctrl_col).size(16.0)).frame(false)).clicked() { ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)); }
+                            
+                            ui.add_space(20.0);
+                            let (rect, _) = ui.allocate_exact_size(Vec2::new(1.0, 16.0), egui::Sense::hover());
+                            ui.painter().rect_filled(rect, 0.0, BORDER_COLOR);
+                            ui.add_space(20.0);
+                            
+                            if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::DOTS_THREE_VERTICAL).color(TEXT_DIM).size(20.0)).frame(false)).clicked() {}
+                            ui.add_space(20.0);
+                            if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::LIGHTNING).color(TEXT_DIM).size(20.0)).frame(false)).clicked() {}
+                            ui.add_space(20.0);
+                            if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::TERMINAL_WINDOW).color(TEXT_DIM).size(20.0)).frame(false)).clicked() { self.current_screen = AppScreen::Agents; }
+                        });
+                    } else if self.current_screen == AppScreen::Settings {
+                        ui.label(RichText::new("VibingIDE").color(ACCENT).size(16.0).strong());
+                        ui.add_space(16.0);
+                        ui.label(RichText::new("/").color(TEXT_DIM).size(16.0));
+                        ui.add_space(16.0);
+                        ui.label(RichText::new("Project Settings").color(TEXT_PRIMARY).size(16.0).strong());
+                        
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.add_space(16.0);
+                            let ctrl_col = TEXT_DIM;
+                            if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::X).color(ctrl_col).size(16.0)).frame(false)).clicked() { ctx.send_viewport_cmd(egui::ViewportCommand::Close); }
+                            ui.add_space(8.0);
+                            if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::SQUARE).color(ctrl_col).size(16.0)).frame(false)).clicked() {
+                                let is_max = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_max));
+                            }
+                            ui.add_space(8.0);
+                            if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::MINUS).color(ctrl_col).size(16.0)).frame(false)).clicked() { ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)); }
+                            
+                            ui.add_space(20.0);
+                            let (rect, _) = ui.allocate_exact_size(Vec2::new(1.0, 16.0), egui::Sense::hover());
+                            ui.painter().rect_filled(rect, 0.0, BORDER_COLOR);
+                            ui.add_space(20.0);
+                            
+                            if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::DOTS_THREE_VERTICAL).color(TEXT_DIM).size(20.0)).frame(false)).clicked() {}
+                            ui.add_space(20.0);
+                            if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::LIGHTNING).color(TEXT_DIM).size(20.0)).frame(false)).clicked() {}
+                            ui.add_space(20.0);
+                            if ui.add(egui::Button::new(RichText::new(egui_phosphor::regular::TERMINAL_WINDOW).color(TEXT_DIM).size(20.0)).frame(false)).clicked() { self.current_screen = AppScreen::Agents; }
+                            
+                            ui.add_space(24.0);
+                            let (rect, _) = ui.allocate_exact_size(Vec2::new(260.0, 32.0), egui::Sense::hover());
+                            ui.painter().rect_filled(rect, 4.0, BG_INPUT);
+                            ui.painter().text(rect.left_center() + Vec2::new(12.0, 0.0), egui::Align2::LEFT_CENTER, format!("{} Search parameters...", egui_phosphor::regular::MAGNIFYING_GLASS), FontId::proportional(13.0), TEXT_DIM);
+                        });
+                    }
                 });
             });
 
@@ -1691,11 +1760,11 @@ impl VibingApp {
                 .frame(egui::Frame::none().fill(BG_DARK).stroke(egui::Stroke::new(1.0, BG_SIDEBAR)))
                 .show_inside(ui, |ui| {
                     ui.horizontal(|ui| {
-                        let mut r = ui.allocate_exact_size(Vec2::new(100.0, 32.0), egui::Sense::hover()).0;
+                        let r = ui.allocate_exact_size(Vec2::new(100.0, 32.0), egui::Sense::hover()).0;
                         ui.painter().rect_filled(r, 0.0, BG_PANEL);
                         ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, "main.rs", FontId::proportional(12.0), ACCENT);
                         
-                        let mut r2 = ui.allocate_exact_size(Vec2::new(100.0, 32.0), egui::Sense::hover()).0;
+                        let r2 = ui.allocate_exact_size(Vec2::new(100.0, 32.0), egui::Sense::hover()).0;
                         ui.painter().text(r2.center(), egui::Align2::CENTER_CENTER, "lib.rs", FontId::proportional(12.0), TEXT_DIM);
                     });
                     ui.separator();
